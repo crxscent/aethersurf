@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.38</title>
+<title>AetherSurf v0.9.39</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -50,7 +50,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.38 · МИРЫ И ПОТОК</div>
+  <div class="ver">v0.9.39 · МИРЫ И ПОТОК</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -215,9 +215,14 @@ const S=[],ISL=[],RINGS=[];let tgt=scene,curRec=null;
 // всё изгибается вдоль плавной кривой с меняющимся курсом — трасса уходит влево и вправо
 const TURNS=[],PTH={th:[0],x:[0],z:[0]},TV=V(),PA={x:0,z:0,th:0};
 function resetPath(){TURNS.length=0;PTH.th=[0];PTH.x=[0];PTH.z=[0]}
-function addTurn(z0,z1,A,rmin){const len=z1-z0,a=z0+len*.1,b=z0+len*.75,mx=(b-a)*2/(Math.PI*(rmin||26));A=clamp(A,-mx,mx);if(Math.abs(A)>1e-3)TURNS.push({z0:a,z1:b,A})}
+function addTurn(z0,z1,A,rmin,s){const len=z1-z0,a=z0+len*.1,b=z0+len*.75,mx=(b-a)*2/(Math.PI*(rmin||26));A=clamp(A,-mx,mx);if(Math.abs(A)>1e-3)TURNS.push({z0:a,z1:b,A,s})}
 function curvAt(z){for(let i=TURNS.length-1;i>=0;i--){const q=TURNS[i];if(q.z1<z)return 0;if(q.z0<=z){const u=(z-q.z0)/(q.z1-q.z0);return q.A*Math.PI/2*Math.sin(Math.PI*u)/(q.z1-q.z0)}}return 0}
-function pathExtend(zmax){const P=PTH;for(let i=P.th.length-1;i<Math.floor(zmax);i++){const th=P.th[i],tm=th+curvAt(i+.5)*.5;P.th.push(th+curvAt(i+.5));P.x.push(P.x[i]+Math.sin(tm));P.z.push(P.z[i]+Math.cos(tm))}}
+// поворот изгибается вокруг самой трассы, а не вокруг оси x=0: трасса часто уходит вбок на 20+ единиц,
+// и тогда на внутренней стороне виража всё сжималось — корабль в мире летел вдвое медленнее, на внешней — вдвое быстрее
+function turnXc(z){for(let i=TURNS.length-1;i>=0;i--){const q=TURNS[i];if(q.z1<z)return 0;if(q.z0<=z){const s=q.s;return s?centerX(s,clamp((z-s.z0)/(s.z1-s.z0),0,1)):0}}return 0}
+// сколько мира приходится на единицу пути трассы в точке (x,z): 1 — без искажения
+function metricAt(z,x){const k=curvAt(z);return k?clamp(1+k*(turnXc(z)-x),.35,2.5):1}
+function pathExtend(zmax){const P=PTH;for(let i=P.th.length-1;i<Math.floor(zmax);i++){const th=P.th[i],k=curvAt(i+.5),tm=th+k*.5,sg=1+k*turnXc(i+.5);P.th.push(th+k);P.x.push(P.x[i]+sg*Math.sin(tm));P.z.push(P.z[i]+sg*Math.cos(tm))}}
 function pathAt(z){const P=PTH,n=P.th.length-1;
   if(z<=0){PA.x=0;PA.z=z;PA.th=0;return PA}
   if(z>=n){const th=P.th[n],d=z-n;PA.x=P.x[n]+Math.sin(th)*d;PA.z=P.z[n]+Math.cos(th)*d;PA.th=th;return PA}
@@ -866,7 +871,7 @@ function buildNext(){
   }
   if(p.yc==='drop')d=Math.max(d,-30-y); // водопад не уходит в облака
   const s=makeSeg(p,z,x,y,d,sx);s.idx=gen.n++;s.gap=gap;S.push(s);
-  {let A=p.turn;if(A==null){const th=headingAt(z);gen.tdir=Math.abs(th)>1.6?-Math.sign(th):(rnd()<.65?-(gen.tdir||1):(gen.tdir||1));A=rnd()<.12?0:gen.tdir*rr(.5,1.2)}addTurn(z,s.z1+gap,A,p.rmin);pathExtend(s.z1+gap+1)}
+  {let A=p.turn;if(A==null){const th=headingAt(z);gen.tdir=Math.abs(th)>1.6?-Math.sign(th):(rnd()<.65?-(gen.tdir||1):(gen.tdir||1));A=rnd()<.12?0:gen.tdir*rr(.5,1.2)}addTurn(z,s.z1+gap,A,p.rmin,s);pathExtend(s.z1+gap+1)}
   const rec={s,g:new THREE.Group(),rails:[],rings:[],stream:null,lyr:[]};tgt=rec.g;curRec=rec;
   TUBE(s)?buildTube(s):buildIsland(s);
   const l=launch(s,nx.inv),dxs=(s.x1-s.x0)/p.L;let nxX,surf;
@@ -1379,10 +1384,10 @@ function frame(now){
   const vc=V(v.x,v.y*.45,v.z);if(vc.lengthSq()<1)vc.set(0,0,1);vc.normalize();
   const ahead=segAt(player.pos.z+6),under=player.gravDir<0||!!(ahead&&ahead.inv&&!player.on);
   camYOff=lerp(camYOff,under?-2.6:2.6,1-Math.exp(-8*dt));
-  const chase=player.pos.clone().addScaledVector(vc,-7.2);chase.y+=camYOff+Math.sin(clock*.45)*.18;chase.x+=Math.sin(clock*.31)*.25;
+  const mB=metricAt(player.pos.z-3.6,player.pos.x),chase=player.pos.clone().addScaledVector(vc,-7.2);chase.z=player.pos.z-7.2*vc.z/mB;chase.y+=camYOff+Math.sin(clock*.45)*.18;chase.x+=Math.sin(clock*.31)*.25;
   const upT=V(0,1,0);
   slx=lerp(slx,v.x*.25,1-Math.exp(-4*dt));sly=lerp(sly,clamp(v.y*.12,-3,3),1-Math.exp(-4*dt));
-  let kMax=0;for(let q=0;q<=16;q+=4)kMax=Math.max(kMax,Math.abs(curvAt(player.pos.z+q)));const la=clamp(.32/Math.max(kMax,1e-4),6,16);
+  let kMax=0;for(let q=0;q<=16;q+=4)kMax=Math.max(kMax,Math.abs(curvAt(player.pos.z+q)));const la=clamp(.32/Math.max(kMax,1e-4),6,16)/metricAt(player.pos.z+6,player.pos.x);
   look.set(player.pos.x+slx,player.pos.y+sly+(player.gravDir>0?.5:-.5),player.pos.z+la);
   if(player.inV){ // в трубах камера идёт по оси и вращается вместе с кораблём
     const s=player.vs,L=s.z1-s.z0,AX=t=>centerX(s,clamp(t,0,1)),AY=t=>along(s,clamp(t,0,1))[0]+Rt(s,clamp(t,0,1)),t0=(player.pos.z-s.z0)/L,rx=player.pos.x-AX(t0),ry=player.pos.y-AY(t0),tc=(player.pos.z-6.5-s.z0)/L,tl=(player.pos.z+Math.min(14,la)-s.z0)/L;
@@ -1397,15 +1402,13 @@ function frame(now){
   if(!player.inV){let lift=0;for(let k=1;k<=5;k++){const f=k/5,px=lerp(player.pos.x,camT.x,f),pz=lerp(player.pos.z,camT.z,f),ss=segAt(pz);if(!ss||TUBE(ss))continue;const q=sample(ss,px,pz);if(!q)continue;
     const py=lerp(player.pos.y,camT.y,f),sg=ss.inv?-1:1;if(sg*(player.pos.y-q.y)<0)continue;const need=sg*(q.y+sg*1.1-py);if(need>0)lift=Math.max(lift,need/f)}
     if(lift>0){camT.y+=(player.gravDir<0?-1:1)*Math.min(lift,6);camT.x=lerp(camT.x,player.pos.x,Math.min(.6,lift*.08))}
-    // позади может оказаться предыдущий остров выше корабля — камера не прячется в его толще, а выходит в просвет перед ним
     // пока корабль на полотне, камера не выходит за ширину острова — иначе она оказывается за внешней стороной стенки
-    const cw=segAt(camT.z);if(player.on&&cw&&!TUBE(cw)&&cw===segAt(player.pos.z)){const tw=clamp((camT.z-cw.z0)/(cw.z1-cw.z0),0,1),hw=halfW(cw,tw)[0]*.85,cx=centerX(cw,tw);camT.x=clamp(camT.x,cx-hw,cx+hw)}
-    const cb=segAt(camT.z);if(cb&&!cb.inv&&!TUBE(cb)&&player.pos.z>cb.z1+.5){const q=sample(cb,camT.x,camT.z,true);if(q&&camT.y<q.y+1.3&&camT.y>q.y-12)camT.z=Math.min(player.pos.z-1.5,cb.z1+.6)}}
+    const cw=segAt(camT.z);if(player.on&&cw&&!TUBE(cw)&&cw===segAt(player.pos.z)){const tw=clamp((camT.z-cw.z0)/(cw.z1-cw.z0),0,1),hw=halfW(cw,tw)[0]*.85,cx=centerX(cw,tw);camT.x=clamp(camT.x,cx-hw,cx+hw)}}
   // из пространства трассы — в мир с поворотами
   W(camT.x,camT.y,camT.z,camera.position);camera.up.copy(camUpT);rotY(camera.up,headingAt(camT.z));
   if(camSnapL){lookS.copy(look);camSnapL=false}else lookS.lerp(look,1-Math.exp(-(6+Math.abs(v.y)*.6+Math.abs(v.x)*.3)*dt));camera.lookAt(W(lookS.x,lookS.y,lookS.z,TV));
-  // страховка: корабль всегда в кадре — если он уходит к краю, взгляд быстрее доворачивает к нему
-  for(let it=0;it<4;it++){camera.updateMatrixWorld();const pr=W(player.pos.x,player.pos.y,player.pos.z,V()).project(camera);if(Math.abs(pr.x)<.7&&Math.abs(pr.y)<.62&&pr.z<1)break;lookS.lerp(player.pos,.45);camera.lookAt(W(lookS.x,lookS.y,lookS.z,TV))}
+  // корабль всегда в кадре: чем ближе он к краю, тем быстрее взгляд плавно доворачивает к нему (без рывков)
+  {camera.updateMatrixWorld();const pr=W(player.pos.x,player.pos.y,player.pos.z,V()).project(camera),ex=pr.z>1?1:Math.max(0,Math.abs(pr.x)-.5)/.5+Math.max(0,Math.abs(pr.y)-.45)/.55;if(ex>0){lookS.lerp(player.pos,1-Math.exp(-10*Math.min(ex,1.5)*dt));camera.lookAt(W(lookS.x,lookS.y,lookS.z,TV))}}
   const kTurn=curvAt(player.pos.z)*SP0*SP0/G;
   sr=lerp(sr,clamp(-player.tilt*.12+kTurn*.35,-.2,.2),1-Math.exp(-5*dt));camera.rotateZ(sr);
   const mOn=MUS.on&&MUS.playing;
