@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.40</title>
+<title>AetherSurf v0.9.41</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.40 · КРОТОВЫЕ НОРЫ</div>
+  <div class="ver">v0.9.41 · КРОТОВЫЕ НОРЫ</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -160,7 +160,9 @@ function halfW(s,t){const L=s.z1-s.z0,b=lerp(s.w0,s.w1,t)/2,bp=(s.w1-s.w0)/2/L;
   if(s.br&&t<KT){const a=TAU*s.brn*t/KT,f=1-s.br*(.5-.5*Math.cos(a)),fp=-s.br*.5*Math.sin(a)*TAU*s.brn/(KT*L);return[b*f,bp*f+b*fp]}
   if(!s.ws||t>=KT)return[b,bp];const u=t/KT,q=Math.sin(Math.PI*u),a=s.ws==='pinch'?-.55:.9,f=1+a*q*q,fp=a*Math.PI*Math.sin(TAU*u)/(KT*L);return[b*f,bp*f+b*fp]}
 const autoB=(s,t)=>clamp(-SP0*SP0/G*center(s,t)[2],-.7,.7);
-function bankAt(s,t){if(!s.autoBank)return[lerp(s.b0,s.b1,t),(s.b1-s.b0)/(s.z1-s.z0)];const e=1e-3,a=Math.max(0,t-e),b=Math.min(1,t+e);return[autoB(s,t),(autoB(s,b)-autoB(s,a))/((b-a)*(s.z1-s.z0))]}
+function bankAt(s,t){if(!s.autoBank){let b=lerp(s.b0,s.b1,t),bp=(s.b1-s.b0)/(s.z1-s.z0);
+    // качели: полотно плавно кренится влево-вправо (до трамплина)
+    if(s.rk&&t<KT){const u=t/KT,A=TAU*s.rkn*u,e=Math.sin(Math.PI*u);b+=s.rk*Math.sin(A)*e;bp+=s.rk*(TAU*s.rkn*Math.cos(A)*e+Math.sin(A)*Math.PI*Math.cos(Math.PI*u))/(KT*(s.z1-s.z0))}return[b,bp]}const e=1e-3,a=Math.max(0,t-e),b=Math.min(1,t+e);return[autoB(s,t),(autoB(s,b)-autoB(s,a))/((b-a)*(s.z1-s.z0))]}
 // сечение полотна: [высота, d/dq], q = -1..1
 function prof(s,q){
   const k=s.k;
@@ -174,6 +176,17 @@ function prof(s,q){
     default:return[k*q*q,2*k*q];
   }
 }
+// сечение, меняющееся вдоль острова: [высота, d/dq, d/dz при том же q]
+const scp=(q,sd,k)=>{const u=(sd*q+1)/2,u5=u*u*u*u*u;return[k*u5*u+.8*q*q,3*k*u5*sd+1.6*q]};
+function xprof(s,q,t,L){const u=Math.min(t/KT,1),z=KT*L;
+  if(s.fx2==='ridge'){ // две колеи: посередине то вырастает, то исчезает гладкий гребень
+    const S=Math.sin(Math.PI*s.rn*u),H=s.rh*S*S,Hp=t<KT?s.rh*Math.PI*s.rn*Math.sin(TAU*s.rn*u)/z:0,e=Math.exp(-q*q/.04);return[H*e,-50*q*H*e,Hp*e]}
+  if(s.fx2==='swap'){ // перелив: высокий борт плавно переезжает на другую сторону
+    const v=clamp((u-.15)/.7,0,1),w=v*v*(3-2*v),wp=(u>.15&&u<.85)?6*v*(1-v)/(.7*z):0,A=scp(q,1,s.sk),B=scp(q,-1,s.sk);return[A[0]+(B[0]-A[0])*w,A[1]+(B[1]-A[1])*w,(B[0]-A[0])*wp]}
+  if(s.fx2==='manta'){ // скат: края широкой ленты идут медленной волной, центр спокоен
+    const q2=q*q,E=q2*q2,ph=TAU*s.mn*u+q*Math.PI*s.msk,sn=Math.sin(ph),cs=Math.cos(ph),e=Math.sin(Math.PI*u),ep=t<KT?Math.PI*Math.cos(Math.PI*u):0;
+    return[s.ma*E*sn*e,s.ma*(4*q2*q*sn+E*cs*Math.PI*s.msk)*e,t<KT?s.ma*E*(cs*TAU*s.mn*e+sn*ep)/z:0]}
+  return[0,0,0]}
 // гребни между жёлобом и боковыми дорогами: [форма, d/dq]
 function divider(s,q){const sq=q<0?-1:1,a=(Math.abs(q)-.56)/.08,e=Math.exp(-a*a);return[e,-2*a/.08*e*sq]}
 function sample(s,x,z,loose){
@@ -185,6 +198,7 @@ function sample(s,x,z,loose){
   if(Math.abs(lat)>h){if(!loose)return null;lat=clamp(lat,-h,h)}
   const sg=s.inv?-1:1,bk=bankAt(s,t),bank=bk[0],hp=hw2[1],q=lat/h,dqdz=-(cxp+q*hp)/h,pr=prof(s,q);
   let y=al[0]+bank*lat+sg*pr[0],gx=bank+sg*pr[1]/h,gzc=al[1],gz=gzc+bk[1]*lat-bank*cxp+sg*pr[1]*dqdz;
+  if(s.fx2){const e=xprof(s,q,t,L);y+=sg*e[0];gx+=sg*e[1]/h;gz+=sg*(e[1]*dqdz+e[2])}
   if(s.pf==='lanes'){ // гребни плавно исчезают перед трамплином — вылет всегда из центра
     const f0=KT-.14,f1=KT-.03,u=clamp((t-f0)/(f1-f0),0,1),fade=1-u*u*(3-2*u),df=(t>f0&&t<f1)?-6*u*(1-u)/((f1-f0)*L):0,dv=divider(s,q);
     y+=sg*s.r*fade*dv[0];gx+=sg*s.r*fade*dv[1]/h;gz+=sg*s.r*(fade*dv[1]*dqdz+dv[0]*df);
@@ -207,7 +221,7 @@ function herm(p0,p1,m0,m1,u){const u2=u*u,u3=u2*u;return[(2*u3-3*u2+1)*p0+(u3-2*
 function streamPt(st,u){const g=st.len,y=herm(st.y0,st.y1,st.m0*g,st.m1*g,u),x=herm(st.x0,st.x1,st.mx0*g,st.mx1*g,u),a=Math.sin(Math.PI*u),b=Math.sin(TAU*u);return{x:x[0]+st.wig*a*b,y:y[0],z:st.z0+u*g,dx:(x[1]+st.wig*(Math.PI*Math.cos(Math.PI*u)*b+TAU*a*Math.cos(TAU*u)))/g,dy:y[1]/g}}
 function makeSeg(p,z,x,y,d,sx){
   const tb=p.pf==='vortex'||p.pf==='serp',w=tb?p.R*2:18;
-  const s={name:p.n||'',z0:z,z1:z+p.L,x0:x,x1:x+sx,y0:y,y1:y+d,w0:p.w0||p.w||w,w1:p.w1||p.w||w,k:p.k??3,pf:p.pf||'U',r:p.r||0,sd:p.sd||1,ax:p.ax||0,an:p.an||1,autoBank:!!p.autoBank,yc:p.yc||'lin',hump:p.hump||0,sag:p.sag||0,camel:p.camel||0,pullK:p.pullK||1,lo:p.lo||.5,hi:p.hi||2.4,torn:!!p.torn,R1:p.R1||p.R||0,well:p.well||0,ws:p.ws||'',ghost:!!p.ghost,thin:!!p.thin,R:p.R||0,spin:p.spin||1,turns:p.turns||1,roll:p.roll||'screw',amp:p.amp||1.5,hw:p.hw||.6,b0:p.b0||0,b1:p.b1||0,kh:p.kh||0,rb:p.rb||0,rbn:p.rbn||0,coil:p.coil||0,cn:p.cn||1,rw:p.rw||0,rwn:p.rwn||1,wd:p.wd||null,wdA:p.wdA||0,wdW:p.wdW||1,hwM:p.hwM||0,br:p.br||0,brn:p.brn||2,fg:p.fg||0,worm:null,inv:!!p.inv,c:p.c||0,gap:0,stream:null,idx:-1};
+  const s={name:p.n||'',z0:z,z1:z+p.L,x0:x,x1:x+sx,y0:y,y1:y+d,w0:p.w0||p.w||w,w1:p.w1||p.w||w,k:p.k??3,pf:p.pf||'U',r:p.r||0,sd:p.sd||1,ax:p.ax||0,an:p.an||1,autoBank:!!p.autoBank,yc:p.yc||'lin',hump:p.hump||0,sag:p.sag||0,camel:p.camel||0,pullK:p.pullK||1,lo:p.lo||.5,hi:p.hi||2.4,torn:!!p.torn,R1:p.R1||p.R||0,well:p.well||0,ws:p.ws||'',ghost:!!p.ghost,thin:!!p.thin,R:p.R||0,spin:p.spin||1,turns:p.turns||1,roll:p.roll||'screw',amp:p.amp||1.5,hw:p.hw||.6,b0:p.b0||0,b1:p.b1||0,kh:p.kh||0,rb:p.rb||0,rbn:p.rbn||0,coil:p.coil||0,cn:p.cn||1,rw:p.rw||0,rwn:p.rwn||1,wd:p.wd||null,wdA:p.wdA||0,wdW:p.wdW||1,hwM:p.hwM||0,br:p.br||0,brn:p.brn||2,fg:p.fg||0,worm:null,fx2:p.fx2||'',rh:p.rh||0,rn:p.rn||2,sk:p.sk||0,ma:p.ma||0,mn:p.mn||2.5,msk:p.msk||1,rk:p.rk||0,rkn:p.rkn||1.5,inv:!!p.inv,c:p.c||0,gap:0,stream:null,idx:-1};
   s.top=tb?2*s.R:s.kh;return s;
 }
 function launch(s,nextInv){ // центр корабля и вертикальная скорость в момент ухода с конца острова
@@ -230,14 +244,16 @@ function wormEls(){if(!WORM.el){WORM.el=document.getElementById('worm');WORM.dot
 function wormCancel(){WORM.ph=0;WORM.out=false;const el=wormEls();el.style.opacity=0;WORM.dots.forEach(d=>{d._on=false;d.style.opacity=0})}
 // влетел в воронку — экран гаснет, по центру одна за другой загораются три точки, и полёт продолжается уже в другом месте
 function wormUpdate(dt){
-  if(!WORM.ph){for(const s of S)if(s.worm&&WORM.pz<s.worm.zp&&player.pos.z>=s.worm.zp&&player.pos.z<s.worm.zp+40){WORM.ph=1;WORM.t=0;WORM.sw=false;WORM.out=false;audio.warp()}}
+  if(!WORM.ph){for(const s of S)if(s.worm&&WORM.pz<s.worm.zp&&player.pos.z>=s.worm.zp&&player.pos.z<s.worm.zp+40){WORM.ph=1;WORM.t=0;WORM.sw=false;WORM.out=false;audio.warp();
+    const w=WORLDS[worldName],el=wormEls();el.style.background=w.dark;WORM.dots.forEach(d=>{d.style.background=w.dot;d.style.boxShadow='0 0 14px '+w.dot})}}
   WORM.pz=player.pos.z;if(!WORM.ph)return;
-  WORM.t+=dt;const t=WORM.t,el=wormEls(),a=t<.3?t/.3:t<2.3?1:Math.max(0,1-(t-2.3)/.8);
+  // 0.25 с экран гаснет, 1.5 с — три точки одна за другой, 0.75 с — проявляется новое место
+  WORM.t+=dt;const t=WORM.t,el=wormEls(),a=t<.25?t/.25:t<1.75?1:Math.max(0,1-(t-1.75)/.75);
   el.style.opacity=(a*a*(3-2*a)*.97).toFixed(3);
-  WORM.dots.forEach((d,i)=>{const on=t>.45+i*.6&&t<2.3;if(d._on!==on){d._on=on;d.style.opacity=on?1:0}});
-  if(!WORM.sw&&t>1){WORM.sw=true;WORM.name='';if(worldPick==='journey'&&!MUS.on){const n=WORLD_ORDER[(WORLD_ORDER.indexOf(worldName)+1)%WORLD_ORDER.length];setWorld(n,true);WORM.name=WORLDS[n].name}}
-  if(t>2.3&&!WORM.out){WORM.out=true;if(WORM.name)toast(WORM.name,1800);audio.chime(660)}
-  if(t>3.1){WORM.ph=0;el.style.opacity=0}
+  WORM.dots.forEach((d,i)=>{const on=t>.35+i*.4&&t<1.75;if(d._on!==on){d._on=on;d.style.opacity=on?1:0}});
+  if(!WORM.sw&&t>.6){WORM.sw=true;WORM.name='';if(worldPick==='journey'&&!MUS.on){const n=WORLD_ORDER[(WORLD_ORDER.indexOf(worldName)+1)%WORLD_ORDER.length];setWorld(n,true);WORM.name=WORLDS[n].name}}
+  if(t>1.75&&!WORM.out){WORM.out=true;if(WORM.name)toast(WORM.name,1800);audio.chime(660)}
+  if(t>2.5){WORM.ph=0;el.style.opacity=0}
 }
 function addTurn(z0,z1,A,rmin,s){const len=z1-z0,a=z0+len*.1,b=z0+len*.75,mx=(b-a)*2/(Math.PI*(rmin||26));A=clamp(A,-mx,mx);if(Math.abs(A)>1e-3)TURNS.push({z0:a,z1:b,A,s})}
 function curvAt(z){for(let i=TURNS.length-1;i>=0;i--){const q=TURNS[i];if(q.z1<z)return 0;if(q.z0<=z){const u=(z-q.z0)/(q.z1-q.z0);return q.A*Math.PI/2*Math.sin(Math.PI*u)/(q.z1-q.z0)}}return 0}
@@ -255,6 +271,12 @@ function pathAt(z){const P=PTH,n=P.th.length-1;
   const i=Math.floor(z),f=z-i;if(JSET.size&&JSET.has(i+1)){const th=P.th[i];PA.x=P.x[i]+Math.sin(th)*f;PA.z=P.z[i]+Math.cos(th)*f;PA.th=th;return PA}
   PA.x=P.x[i]+(P.x[i+1]-P.x[i])*f;PA.z=P.z[i]+(P.z[i+1]-P.z[i])*f;PA.th=P.th[i]+(P.th[i+1]-P.th[i])*f;return PA}
 const headingAt=z=>pathAt(z).th;
+// камера и точка взгляда остаются в «зоне» корабля: через разрыв норы их не утаскивает на другой конец мира
+function Wz(x,y,z,zr,o){if(!JSET.size)return W(x,y,z,o);const P=PTH;
+  for(const j of JUMPS){if(j.i>=P.th.length)continue;let i0=-1;if(zr<j.i&&z>=j.i)i0=j.i-1;else if(z<j.i&&zr>=j.i)i0=j.i;
+    if(i0>=0){const th=P.th[i0],d=z-i0,c=Math.cos(th),sn=Math.sin(th);return o.set(P.x[i0]+sn*d+x*c,y,P.z[i0]+c*d-x*sn)}}
+  return W(x,y,z,o)}
+function headZ(z,zr){for(const j of JUMPS){if(z<j.i&&zr>=j.i&&j.i<PTH.th.length)return PTH.th[j.i];if(zr<j.i&&z>=j.i)return PTH.th[j.i-1]}return headingAt(z)}
 function W(x,y,z,o){const p=pathAt(z),c=Math.cos(p.th),sn=Math.sin(p.th);return o.set(p.x+x*c,y,p.z-x*sn)}
 const rotY=(v,th)=>{const c=Math.cos(th),sn=Math.sin(th),x=v.x,z=v.z;v.x=x*c+z*sn;v.z=-x*sn+z*c;return v};
 // запекаем изгиб в геометрию острова один раз при постройке
@@ -354,28 +376,77 @@ function buildTube(s){
 }
 const VFIN=PAL.map(c=>{const m=new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:.35,roughness:.5,metalness:.2,side:THREE.DoubleSide,flatShading:true});m.userData.shared=true;return m});
 // поток: светящиеся частицы текут по кривой, вокруг — едва заметный объём
+// частицы потока в стиле мира
+const FXTEX={};
+function fxTex(kind){if(FXTEX[kind])return FXTEX[kind];const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
+  if(kind==='grain'){const r=g.createRadialGradient(32,32,0,32,32,16);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.55,'rgba(255,255,255,.95)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,64,64)}
+  else if(kind==='flake'){g.strokeStyle='#fff';g.lineCap='round';g.lineWidth=3.2;for(let i=0;i<3;i++){const a=i*Math.PI/3,dx=Math.cos(a)*25,dy=Math.sin(a)*25;g.beginPath();g.moveTo(32-dx,32-dy);g.lineTo(32+dx,32+dy);g.stroke()}
+    const r=g.createRadialGradient(32,32,0,32,32,12);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,64,64)}
+  else if(kind==='bubble'){g.strokeStyle='rgba(255,255,255,.95)';g.lineWidth=3;g.beginPath();g.arc(32,32,24,0,TAU);g.stroke();g.fillStyle='rgba(255,255,255,.18)';g.fill();g.fillStyle='rgba(255,255,255,.95)';g.beginPath();g.arc(23,22,5,0,TAU);g.fill()}
+  else if(kind==='spark'){const r=g.createRadialGradient(32,32,0,32,32,20);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.3,'rgba(255,255,255,.5)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,64,64);
+    g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.beginPath();g.moveTo(32,2);g.lineTo(32,62);g.moveTo(2,32);g.lineTo(62,32);g.stroke()}
+  const t=new THREE.CanvasTexture(c);FXTEX[kind]=t;return t}
+const STREAMFX={
+  air:{tex:'',size:.5,col:null,op:.9,sp:1,vol:.07,vcol:null,add:1},
+  sand:{tex:'grain',size:.4,col:0x9a6232,op:.95,sp:1.45,vol:.14,vcol:0xb27a45,swirl:2.4,add:0},
+  snow:{tex:'flake',size:.55,col:0xeef4ff,op:.95,sp:.7,vol:.05,vcol:0x9fb4d8,flut:.45,add:0},
+  star:{tex:'spark',size:.8,col:null,op:1,sp:1.6,vol:.08,vcol:null,add:1},
+  water:{tex:'bubble',size:.5,col:0xcffcff,op:.85,sp:.85,vol:.13,vcol:0x2f9fb0,rise:.9,add:1}};
 function buildStream(rec){
-  const st=rec.s.stream,N=150,pos=new Float32Array(N*3),data=[];
-  for(let i=0;i<N;i++)data.push({u:rnd(),sp:rr(.18,.35),r:Math.sqrt(rnd())*2.6,a:rnd()*TAU});
+  const st=rec.s.stream,N=170,pos=new Float32Array(N*3),data=[],vols=[];
+  for(let i=0;i<N;i++)data.push({u:rnd(),sp:rr(.18,.35),r:Math.sqrt(rnd())*2.6,a:rnd()*TAU,ph:rnd()});
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
   const pts=new THREE.Points(geo,new THREE.PointsMaterial({color:PAL[rec.s.c],size:.5,map:SOFT,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));pts.frustumCulled=false;pts.userData.live=true;tgt.add(pts);
   const vol=(u0,u1)=>{const path=[];for(let k=0;k<=40;k++){const p=streamPt(st,lerp(u0,u1,k/40));path.push(V(p.x,p.y,p.z))}
-    tgt.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(path),60,2.6,12,false),new THREE.MeshBasicMaterial({color:PAL[rec.s.c],transparent:true,opacity:.07,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide})))};
+    const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(path),60,2.6,12,false),new THREE.MeshBasicMaterial({color:PAL[rec.s.c],transparent:true,opacity:.07,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));tgt.add(m);vols.push(m)};
   if(st.cut){vol(0,st.cut[0]);vol(st.cut[1],1)}else vol(0,1);
-  rec.stream={pos,geo,data,st};updateStream(rec,0);
+  rec.stream={pos,geo,data,st,pts,vols,fx:null};updateStream(rec,0);
 }
-function updateStream(rec,dt){const{pos,geo,data,st}=rec.stream,k=st.kind==='up'?1.6:1;for(let i=0;i<data.length;i++){const p=data[i];p.u+=p.sp*dt*k;if(p.u>1)p.u-=1;let u=p.u,r=p.r,a=p.a;if(st.cut){if(u<st.cut[0]){const f=u/st.cut[0];r*=1+1.6*f*f;a+=f*f*4}else if(u<st.cut[1]){u=st.cut[0];r=0}}const q=streamPt(st,u);W(q.x+Math.cos(a)*r,q.y+Math.sin(a)*r,q.z,TV);pos[i*3]=TV.x;pos[i*3+1]=TV.y;pos[i*3+2]=TV.z}geo.attributes.position.needsUpdate=true}
+function updateStream(rec,dt){const R0=rec.stream,{pos,geo,data,st}=R0,F=STREAMFX[WORLDS[worldName].fx]||STREAMFX.air;
+  if(R0.fx!==F){R0.fx=F;const m=R0.pts.material;m.map=F.tex?fxTex(F.tex):SOFT;m.size=F.size;m.color.setHex(F.col??PAL[rec.s.c]);m.opacity=F.op;m.blending=F.add?THREE.AdditiveBlending:THREE.NormalBlending;m.needsUpdate=true;
+    R0.vols.forEach(v=>{v.material.color.setHex(F.vcol??PAL[rec.s.c]);v.material.opacity=F.vol;v.material.blending=F.add?THREE.AdditiveBlending:THREE.NormalBlending;v.material.needsUpdate=true})}
+  const k=(st.kind==='up'?1.6:1)*F.sp;
+  for(let i=0;i<data.length;i++){const p=data[i];p.u+=p.sp*dt*k;if(p.u>1)p.u-=1;let u=p.u,r=p.r,a=p.a+(F.swirl?clock*F.swirl*(.6+p.ph):0);
+    if(st.cut){if(u<st.cut[0]){const f=u/st.cut[0];r*=1+1.6*f*f;a+=f*f*4}else if(u<st.cut[1]){u=st.cut[0];r=0}}
+    const q=streamPt(st,u);let ox=Math.cos(a)*r,oy=Math.sin(a)*r;
+    if(r>0){if(F.flut){ox+=Math.sin(clock*2.1+p.ph*20)*F.flut;oy+=Math.sin(clock*1.3+p.ph*13)*F.flut*.6}if(F.rise)oy+=((clock*F.rise+p.ph*3)%3)-1.5}
+    W(q.x+ox,q.y+oy,q.z,TV);pos[i*3]=TV.x;pos[i*3+1]=TV.y;pos[i*3+2]=TV.z}
+  geo.attributes.position.needsUpdate=true}
 // закручивающаяся воронка кротовой норы: спиральные рукава вращаются, в центре — тёмная глубина
-const WORMU={uT:{value:0},uA:{value:new THREE.Color()},uB:{value:new THREE.Color()}};
+// воронка кротовой норы в стиле мира: эфир — воздушная, пустыня — песчаная, зима — снежный вихрь, космос — чёрная дыра, глубина — водоворот
+const WORMU={uT:{value:0},uFx:{value:0},uA:{value:new THREE.Color()},uB:{value:new THREE.Color()}};
 const WORMMAT=new THREE.ShaderMaterial({uniforms:WORMU,transparent:true,depthWrite:false,side:THREE.DoubleSide,
   vertexShader:`varying vec2 vU;void main(){vU=uv*2.-1.;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-  fragmentShader:`varying vec2 vU;uniform float uT;uniform vec3 uA,uB;
-  void main(){float r=length(vU);if(r>1.)discard;float a=atan(vU.y,vU.x)+uT*.35;
-    float sw=.5+.5*sin(a*3.+log(r+.02)*7.-uT*2.4),sw2=.5+.5*sin(-a*5.+log(r+.02)*11.-uT*3.3);
-    float arms=pow(sw,3.)*smoothstep(1.,.28,r),fine=pow(sw2,6.)*smoothstep(.95,.35,r)*.5;
-    float core=smoothstep(.5,.0,r),rim=exp(-pow((r-.93)/.05,2.));
-    vec3 col=mix(uA,uB,sw)*(arms*1.8+fine)+mix(uB,vec3(1.),.4)*rim*1.4;col=mix(col,vec3(.015,.01,.04),core);
-    gl_FragColor=vec4(col,clamp(arms*.85+fine+rim+core*.97,0.,1.)*smoothstep(1.,.9,r));}`});
+  fragmentShader:`varying vec2 vU;uniform float uT,uFx;uniform vec3 uA,uB;
+  float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+  float n21(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
+  void main(){float r=length(vU);if(r>1.)discard;float t=uT,lr=log(r+.02),rim=exp(-pow((r-.93)/.05,2.)),edge=smoothstep(1.,.9,r);vec3 col;float al;
+    if(uFx<.5){ // воздух: мягкие пастельные рукава
+      float a=atan(vU.y,vU.x)+t*.35,sw=.5+.5*sin(a*3.+lr*7.-t*2.4),sw2=.5+.5*sin(-a*5.+lr*11.-t*3.3);
+      float arms=pow(sw,3.)*smoothstep(1.,.28,r),fine=pow(sw2,6.)*smoothstep(.95,.35,r)*.5,core=smoothstep(.5,0.,r);
+      col=mix(uA,uB,sw)*(arms*1.8+fine)+mix(uB,vec3(1.),.4)*rim*1.4;col=mix(col,vec3(.015,.01,.04),core);al=clamp(arms*.85+fine+rim+core*.97,0.,1.)*edge;
+    }else if(uFx<1.5){ // песок: зернистые рукава стекают в тёмную глубину
+      float a=atan(vU.y,vU.x)+t*.5;vec2 d=vec2(cos(a),sin(a));float sw=.5+.5*sin(a*2.+lr*8.-t*3.);
+      float gr=.35+.65*h21(floor(vec2(a*70.,lr*90.-t*24.))),dust=n21(d*4.+vec2(lr*6.-t*2.,0.));
+      float arms=pow(sw,1.5)*smoothstep(1.,.18,r),core=smoothstep(.42,0.,r);
+      col=mix(uA*.45,uB,arms*(.5+.5*dust))*(.45+.95*gr*(.35+arms))+uB*rim*.8;col=mix(col,vec3(.07,.035,.012),core);al=clamp(.4+arms*.55+rim+core,0.,1.)*edge;
+    }else if(uFx<2.5){ // зима: снежный вихрь, в рукавах летят снежинки
+      float a=atan(vU.y,vU.x)+t*.25,sw=.5+.5*sin(a*4.+lr*6.-t*1.8);
+      float fl=step(.975,h21(floor(vec2(a*34.,lr*44.-t*9.))))*smoothstep(1.,.3,r);
+      float arms=pow(sw,2.)*smoothstep(1.,.3,r),core=smoothstep(.45,0.,r);
+      col=mix(uA*.5,uB,arms)*arms*1.3+vec3(1.)*fl*1.6+uB*rim;col=mix(col,vec3(.02,.03,.06),core);al=clamp(arms*.7+fl+rim+core*.95,0.,1.)*edge;
+    }else if(uFx<3.5){ // космос: чёрная дыра — горячий аккреционный диск и тонкое кольцо света
+      float a=atan(vU.y,vU.x)+t*.6;vec2 d=vec2(cos(a),sin(a));float disk=smoothstep(.34,.52,r)*smoothstep(1.,.62,r);
+      float st=.5+.5*sin(a+lr*14.-t*4.)+.35*n21(d*5.+vec2(lr*9.-t*3.,0.));
+      float ring=exp(-pow((r-.36)/.022,2.)),core=smoothstep(.35,.31,r);
+      col=mix(uA,uB,clamp(st,0.,1.))*disk*st*1.7+vec3(1.,.95,.9)*ring*2.2+uB*rim*.5;col*=1.-core;al=clamp(disk*(.35+st*.6)+ring+rim*.5+core,0.,1.)*edge;
+    }else{ // глубина: водоворот — пенные полосы закручиваются к центру
+      float a=atan(vU.y,vU.x)+t*.45;vec2 d=vec2(cos(a),sin(a));float sw=.5+.5*sin(a*2.+lr*10.-t*2.6);
+      float foam=pow(n21(d*3.+vec2(lr*12.-t*3.,0.)),3.)*2.2;
+      float arms=pow(sw,2.5)*smoothstep(1.,.25,r),core=smoothstep(.5,0.,r);
+      col=mix(uA*.5,uB,sw)*(.35+arms)+vec3(.85,1.,1.)*foam*arms+uB*rim*.8;col=mix(col,vec3(0.,.03,.05),core);al=clamp(.45+arms*.5+foam*.3+rim+core,0.,1.)*edge;
+    }
+    gl_FragColor=vec4(col,al);}`});
 function buildWormPortal(s){const q=streamPt(s.stream,.1),g=new THREE.Mesh(new THREE.CircleGeometry(8.5,72),WORMMAT);g.position.set(q.x,q.y,q.z);tgt.add(g);
   const rim=new THREE.Mesh(new THREE.TorusGeometry(8.5,.2,8,96),LIPMAT);rim.position.copy(g.position);tgt.add(rim);
   const gl=glowSprite(PAL[s.c],38,.45);gl.position.copy(g.position);tgt.add(gl)}
@@ -602,7 +673,10 @@ const MSET={
   break:{bridge:1.3,ghost:1,sweep:1,hillRibbon:.8,bowl:.8,crescent:.8,U:.5,well:.6,ribbon:.8},
   outro:{sweep:1,bridge:1.2,ribbon:1,crescent:.8,U:.5,bob:.6}
 };
-const TUBEK=['worm','coil','arcRibbon','hillRibbon','vortex','tornado','serp','wave','barrel','double','snake','curl','screw','spiral'];
+Object.assign(MSET.intro,{manta:1,rock:.8,breath:.8});Object.assign(MSET.verse,{ridge:1,swap:1,rock:.8,breath:.8});Object.assign(MSET.peak,{pearl:1.2,nozzle:1,ridge:.8,swap:.8,cocoon:.8});
+Object.assign(MSET.break,{manta:1,cocoon:1.1,breath:.8});Object.assign(MSET.outro,{manta:.8,rock:.6});
+Object.assign(LR,{rock:[50,130],ridge:[44,120],pearl:[44,100],nozzle:[40,90],swap:[44,120],manta:[50,130],breath:[46,120],cocoon:[60,120]});
+const TUBEK=['pearl','nozzle','cocoon','worm','coil','arcRibbon','hillRibbon','vortex','tornado','serp','wave','barrel','double','snake','curl','screw','spiral'];
 function melodyIn(t0,t1){const an=MUS.an,a=clamp(Math.floor(t0*an.fps),0,an.mel.length-1),b=clamp(Math.floor(t1*an.fps),a+1,an.mel.length);let s=0;for(let i=a;i<b;i++)s+=an.mel[i];
   const q=Math.max(1,Math.floor((b-a)/4)),m0=an.mel[a+Math.min(q,b-a-1)],m1=an.mel[Math.max(a,b-1-q)];return{m:s/(b-a),d:m1-m0}}
 function planMusicChunk(){
@@ -623,7 +697,7 @@ function planMusicChunk(){
     const nxs=MUS.slots[MUS.si],buildNow=sec.build&&(!MUS.lines||!!(nxs&&nxs.launch)),set=Object.assign({},MSET[buildNow?'build':ty]);
     if(ty==='peak'&&sl.k===0){if(y>4)Object.assign(set,{waterfall:3,screw:2.5});set.camel=1.5}
     // слова задают характер: распев — плавные ленты и волны, скороговорка — короткие резкие, протяжные строки — длинные
-    if(sl.voc)Object.assign(set,{wave:2.5,curl:2,ribbon:2,crescent:1.5,snake:1.2,tube:1.5,bowl:1.2,twist:1});
+    if(sl.voc)Object.assign(set,{wave:2.5,curl:2,ribbon:2,crescent:1.5,snake:1.2,tube:1.5,bowl:1.2,twist:1,manta:1.4,cocoon:1.2});
     else if(sl.dens>3.4)for(const k of['V','funnel','pinch','camel','scoop','twist'])set[k]=(set[k]||.5)*1.8;
     else if(sl.dens&&sl.dens<2)for(const k of['ribbon','bridge','crescent','wave','serp','snake','curl'])set[k]=(set[k]||.4)*1.8;
     let W=Object.entries(set).filter(([k,w])=>w>0&&k!==gen.last&&L>=LR[k][0]&&L<=LR[k][1]&&!(tilted&&TUBEK.includes(k)));
@@ -643,7 +717,7 @@ function planMusicChunk(){
   if(!TUBE(o)&&!o.inv)o.sx=clamp(mel.d*16+rr(-3,3)-gen.x*.3,-9,9);
   // ритм внутри острова: слалом — крайние точки на 2-й и 4-й доле (малый барабан),
   // волны-роллеры — провалы на 1-й и 3-й доле (бочка): корабль «качается» в такт
-  const bl=60/an.bpm,nbt=Math.round((sl.t1-sl.t0)/bl),flat=!o.rb&&!o.turn&&!TUBE(o)&&!o.inv&&o.pf!=='cloud'&&!o.yc&&!o.hump&&!o.sag&&!o.camel&&!o.well&&!o.thin&&!o.stream;
+  const bl=60/an.bpm,nbt=Math.round((sl.t1-sl.t0)/bl),flat=!o.rb&&!o.turn&&!TUBE(o)&&!o.inv&&o.pf!=='cloud'&&!o.yc&&!o.hump&&!o.sag&&!o.camel&&!o.well&&!o.thin&&!o.stream&&!o.fx2&&!o.rk&&!o.br;
   const inW=(sl.words||[]).filter(w=>w>sl.t0+.22&&w<sl.t1-.22);
   if(flat&&inW.length>=2){const sp=Math.min(.5,...inW.slice(1).map((w,i)=>w-inW[i])),w=clamp(sp*SP0*.45,2.2,5);o.wd=inW.map(x=>(x-sl.t0)/(sl.t1-sl.t0)).filter(c=>c*L>=w+2&&(1-c)*L>=w+7);o.wdW=w;o.wdA=Math.min(1,.03*w*w*G/24);if(!o.wd.length)o.wd=null}
   const slalomOK=!(sl.words&&sl.words.length)&&flat&&!o.ax&&!o.b0&&!o.b1&&!['wall','scoop','road','lanes'].includes(o.pf)&&!o.ws&&nbt>=4;
@@ -874,9 +948,15 @@ const T={
   portal:()=>({n:'ПОРТАЛ',L:26,w:22,k:3,kh:5.5,portal:true}),
   wormhole:()=>({n:'КРОТОВАЯ НОРА',L:rr(24,28),w:20,k:3.2,kh:6,worm:true,stream:'worm',gap:rr(92,100),toRel:rr(-3,3)}),
   // штиль: долгое парение при слабой гравитации — наклоном и тангажом ловишь кольца и сам ведёшь посадку
-  calm:()=>({n:'ШТИЛЬ',L:rr(24,28),w:19,k:3,kh:6.2,fg:.3,gap:rr(70,84),toRel:-rr(4,10)}),
+  calm:()=>({n:'ШТИЛЬ',L:rr(24,28),w:19,k:3,kh:6.2,fg:.3,gap:rr(70,84)*modes[mi][1],toRel:-rr(4,10)}), // длина пролёта растёт со скоростью — штиль всегда 5–6 с
   cocoon:()=>({pf:'serp',roll:'cocoon',n:'КОКОН',L:rr(84,100),R:8,hw:1.35,hwM:rr(2.55,2.75),amp:.5,spin:sgn(),maxUp:6,maxDown:-8}),
   breath:()=>({n:'ДЫХАНИЕ',L:rr(72,88),w:rr(20,22),k:rr(4,4.8),br:rr(.4,.46),brn:2,kh:5.5}),
+  rock:()=>({n:'КАЧЕЛИ',L:rr(84,100),w:20,k:3.5,rk:rr(.26,.32)*sgn(),rkn:1.5,kh:5.5}),
+  ridge:()=>({n:'ДВЕ КОЛЕИ',L:rr(70,86),w:22,k:3.2,fx2:'ridge',rh:rr(2,2.6),rn:2,kh:5.5}),
+  pearl:()=>({pf:'vortex',n:'ЖЕМЧУЖИНА',L:rr(64,76),R:6,spin:sgn(),rw:rr(.85,1),rwn:.5,maxUp:8,maxDown:-8}),
+  nozzle:()=>({pf:'vortex',n:'ДЮЗА',L:rr(56,66),R:7.5,spin:sgn(),rw:-rr(.4,.46),rwn:.5,maxUp:10,maxDown:-6}),
+  swap:()=>({n:'ПЕРЕЛИВ',L:rr(70,84),w:20,k:0,fx2:'swap',sk:rr(11,13),kh:5.5,pullK:.5}),
+  manta:()=>({n:'СКАТ',L:rr(72,88),w:26,k:2.2,fx2:'manta',ma:rr(1.6,2),mn:rr(2.5,3),msk:1,kh:5.5}),
   carrier:(kind,o)=>Object.assign({L:rr(20,24),k:3,kh:5,stream:kind},pick([{},{pf:'V',w:17,k:4},{pf:'tube',w:15,k:7},{ws:'bowl',w:20,k:8}]),o),
   entry:()=>({n:'К ПОТОЛКУ',L:20,k:3.5,kh:6,gap:8,dFix:-2}),
   ceil:(pf,last)=>Object.assign({inv:true,pf,L:rr(22,28),w:18,kh:last?0:4.5,maxUp:5,maxDown:-5},{U:{k:3},V:{k:4,w:17},wall:{k:10,sd:sgn()},lanes:{k:5,w:24,r:.7},road:{k:.6,w:16,b0:.25*sgn(),b1:0},tube:{k:6,w:15}}[pf])
@@ -897,7 +977,7 @@ function planChunk(){
     const W=[['U',.45],['V',.6],['lanes',.8],['wall',1.2],['tube',.6],['road',.8],['twist',.8],['bob',.7],['funnel',.5],
       ['climb',need>6?1.1:0],['drop',need<-10?1.3:0],['waterfall',need<-12&&ready('waterfall',5)?2:0],
       ['vortex',ready('vortex',6)?1.4:0],['worm',ready('worm',8)&&!tilted?1.1:0],['coil',ready('coil',9)&&!tilted?1:0],['serp',ready('serp',10)&&!tilted?(need<-10?1.4:.5):0],['wave',ready('wave',7)&&!tilted?.8:0],['barrel',ready('barrel',7)&&!tilted?.8:0],
-      ['ribbon',ready('ribbon',8)?.9:0],['candle',ready('candle',6)?.8:0],['bridge',ready('bridge',9)?.9:0],['scoop',ready('scoop',5)?1.1:0],['camel',ready('camel',6)?.8:0],['saddle',ready('saddle',7)?.7:0],['curl',ready('curl',8)&&!tilted?.8:0],['tornado',ready('tornado',8)?.8:0],['screw',need<-12&&ready('screw',9)&&!tilted?1.2:0],['well',ready('well',7)?.9:0],['snake',ready('snake',9)&&!tilted?.8:0],['spiral',need>10&&ready('spiral',10)&&!tilted?1.3:0],['ghost',ready('ghost',6)?.9:0],['berm',ready('berm',5)?1.1:0],['helix',y>-5&&ready('helix',8)?1:0],['hills',ready('hills',5)?.9:0],['flare',ready('flare',6)?.8:0],['esses',ready('esses',5)?1:0],['sweep',ready('sweep',5)?1:0],['arcRibbon',ready('arcRibbon',7)&&!tilted?.9:0],['hillRibbon',ready('hillRibbon',7)&&!tilted?.8:0],['crescent',ready('crescent',8)?.8:0],['pinch',ready('pinch',6)?.8:0],['bowl',ready('bowl',6)?.9:0],['glide',ready('glide',7)?.7:0],['calm',ready('calm',8)?1.6:0],['cocoon',ready('cocoon',8)&&!tilted?1.3:0],['breath',ready('breath',7)?1.4:0]].filter(([k,w])=>w>0&&k!==gen.last);
+      ['ribbon',ready('ribbon',8)?.9:0],['candle',ready('candle',6)?.8:0],['bridge',ready('bridge',9)?.9:0],['scoop',ready('scoop',5)?1.1:0],['camel',ready('camel',6)?.8:0],['saddle',ready('saddle',7)?.7:0],['curl',ready('curl',8)&&!tilted?.8:0],['tornado',ready('tornado',8)?.8:0],['screw',need<-12&&ready('screw',9)&&!tilted?1.2:0],['well',ready('well',7)?.9:0],['snake',ready('snake',9)&&!tilted?.8:0],['spiral',need>10&&ready('spiral',10)&&!tilted?1.3:0],['ghost',ready('ghost',6)?.9:0],['berm',ready('berm',5)?1.1:0],['helix',y>-5&&ready('helix',8)?1:0],['hills',ready('hills',5)?.9:0],['flare',ready('flare',6)?.8:0],['esses',ready('esses',5)?1:0],['sweep',ready('sweep',5)?1:0],['arcRibbon',ready('arcRibbon',7)&&!tilted?.9:0],['hillRibbon',ready('hillRibbon',7)&&!tilted?.8:0],['crescent',ready('crescent',8)?.8:0],['pinch',ready('pinch',6)?.8:0],['bowl',ready('bowl',6)?.9:0],['glide',ready('glide',7)?.7:0],['calm',ready('calm',8)?1.6:0],['cocoon',ready('cocoon',8)&&!tilted?1.3:0],['breath',ready('breath',7)?1.4:0],['rock',ready('rock',6)?1:0],['ridge',ready('ridge',6)?1.1:0],['pearl',ready('pearl',7)?1:0],['nozzle',ready('nozzle',7)?.9:0],['swap',ready('swap',6)?1.1:0],['manta',ready('manta',6)?1:0]].filter(([k,w])=>w>0&&k!==gen.last);
     let r=rnd()*W.reduce((a,b)=>a+b[1],0),k=W[0][0];for(const[kk,w]of W){if((r-=w)<=0){k=kk;break}}
     gen.last=k;if(!['U','V','lanes','wall','tube','road','twist','bob','funnel','climb','drop'].includes(k))use(k);
     out=[k==='glide'?T.carrier('glide',{toRel:clamp(need,-10,8)}):T[k]()];
@@ -919,12 +999,19 @@ function buildNext(){
   }
   if(p.yc==='drop')d=Math.max(d,-30-y); // водопад не уходит в облака
   const s=makeSeg(p,z,x,y,d,sx);s.idx=gen.n++;s.gap=gap;S.push(s);
-  if(p.worm){s.worm={zp:s.z1+gap*.1,zi:Math.ceil(s.z1+gap*.2)};addJump(s.worm.zi)}
+  if(p.worm){s.worm={zp:s.z1+gap*.1,zi:Math.ceil(s.z1+gap*.1+7)};addJump(s.worm.zi)}
   {let A=p.turn;if(A==null){const th=headingAt(z);gen.tdir=Math.abs(th)>1.6?-Math.sign(th):(rnd()<.65?-(gen.tdir||1):(gen.tdir||1));A=rnd()<.12?0:gen.tdir*rr(.5,1.2)}addTurn(z,s.z1+gap,A,p.rmin,s);pathExtend(s.z1+gap+1);if(p.worm)redecor(s.worm.zi-140)}
   const rec={s,g:new THREE.Group(),rails:[],rings:[],stream:null,lyr:[]};tgt=rec.g;curRec=rec;
   TUBE(s)?buildTube(s):buildIsland(s);
+  if(!p.slot){
   if(s.roll==='cocoon')[.3,.45,.6,.75].forEach((t,i)=>{const ph=(i%2?1:-1)*s.spin*rr(1.5,2.2),P=tubePos(s,t,roadAng(s,t)+ph);makeRing({x:P.x,y:P.y,z:lerp(s.z0,s.z1,t),r:2.3,c:PAL[(s.c+i+1)%5]})});
   if(s.br)for(let j=0;j<s.brn;j++){const t=KT*(j+.5)/s.brn,z=lerp(s.z0,s.z1,t),x=centerX(s,t);makeRing({x,y:surfY(s,x,z)+1.4,z,r:2.4,c:PAL[s.c]})}
+    const ringAt=(t,q,j)=>{const z=lerp(s.z0,s.z1,t),x=centerX(s,t)+q*halfW(s,t)[0];makeRing({x,y:surfY(s,x,z)+1.3,z,r:2.5,c:PAL[(s.c+j+1)%5]})};
+    if(s.fx2==='ridge')for(let j=0;j<s.rn;j++)ringAt(KT*(j+.5)/s.rn,j%2?.5:-.5,j);
+    if(s.fx2==='swap'){ringAt(KT*.2,.62,0);ringAt(KT*.8,-.62,1)}
+    if(s.fx2==='manta'){ringAt(KT*.3,.72,0);ringAt(KT*.62,-.72,1)}
+    if(s.rk){ringAt(KT*.2,.55*Math.sign(s.rk),0);ringAt(KT*.52,-.55*Math.sign(s.rk),1)}
+  }
   const l=launch(s,nx.inv),dxs=(s.x1-s.x0)/p.L;let nxX,surf;
   if(p.stream){
     nxX=s.x1+dxs*gap+clamp(rr(-10,10)-s.x1*.3,-12,12);
@@ -1085,35 +1172,35 @@ function manual(){let r=0,p=0;if(keys.ArrowLeft||keys.KeyA||hL)r--;if(keys.Arrow
    Переходы плавные: все параметры перетекают за несколько секунд. */
 const c3=h=>{const c=new THREE.Color(h);return[c.r,c.g,c.b]};
 const WORLDS={
-  aether:{name:'ЭФИР',tex:'aether',pal:[0x7af3ff,0xb79bff,0xff9fdc,0x86ffd6,0xffd3a1],
+  aether:{name:'ЭФИР',tex:'aether',fx:'air',pfx:0,wA:0xb79bff,wB:0x7af3ff,dark:'radial-gradient(ellipse at 50% 50%,#0c0a1a 0%,#030208 75%)',dot:'#efeaff',pal:[0x7af3ff,0xb79bff,0xff9fdc,0x86ffd6,0xffd3a1],
     zen:[.02,.02,.08],mid:[.10,.07,.25],hor:[.42,.30,.58],low:[.30,.26,.50],neb1:[.55,.25,.75],neb2:[.15,.55,.70],neb:1,aurA:[.25,1,.8],aurB:[.75,.45,1],aur:1,
     sun:[1,.85,.95],sunDir:[0,.1,1],sunSize:160,sunGlow:.12,rays:0,planet:0,planetDir:[-.5,.22,1],planetCol:[.55,.45,.85],galaxy:0,stars:1,
     fog:c3(0x6b4d94),fogD:.0026,fA:[.17,.13,.34],fB:[.86,.74,.98],fC:[.25,.6,.7],cloud:1,dune:0,caus:0,void:0,spark:0,
     rock:c3(0x2c2552),rockE:c3(0x0e0a24),moss0:c3(0x9ff5e0),moss1:c3(0xf2c4ff),rim:[.30,.26,.55],hemiS:c3(0xd8ccff),hemiG:c3(0x2a4060),hemi:.55,key:c3(0xffe9f6),fill:c3(0x9fdcff),
     cloudLo:c3(0xd9c8ff),cloudHi:c3(0xbfd8ff),cloudO:1,mote:[1,1,1],moteSize:.35,wind:[0,.5,0],wob:.3,
     emi:.42,rough:.55,metal:.15,env:.45,nrm:.45,tcaus:0,causC:[.5,1,.9],tspark:0},
-  desert:{name:'ПУСТЫНЯ',tex:'sand',pal:[0xffc27a,0xff8f6b,0xffe2b8,0xe86f7e,0xf6a95c],
+  desert:{name:'ПУСТЫНЯ',tex:'sand',fx:'sand',pfx:1,wA:0x9a5a2c,wB:0xffd79c,dark:'radial-gradient(ellipse at 50% 50%,#1c1207 0%,#080502 75%)',dot:'#ffe4b8',pal:[0xffc27a,0xff8f6b,0xffe2b8,0xe86f7e,0xf6a95c],
     zen:[.16,.28,.56],mid:[.60,.50,.62],hor:[1,.80,.60],low:[.90,.60,.42],neb1:[.9,.5,.4],neb2:[.9,.7,.5],neb:.22,aurA:[1,.8,.5],aurB:[1,.6,.6],aur:0,
     sun:[1,.88,.65],sunDir:[-.35,.16,1],sunSize:70,sunGlow:.45,rays:0,planet:0,planetDir:[-.5,.22,1],planetCol:[.9,.7,.5],galaxy:0,stars:0,
     fog:c3(0xe9b98f),fogD:.0021,fA:[.55,.30,.18],fB:[1,.80,.55],fC:[1,.9,.7],cloud:0,dune:1,caus:0,void:0,spark:.9,
     rock:c3(0xb97a55),rockE:c3(0x2a130a),moss0:c3(0xf6d9a8),moss1:c3(0xe8a77a),rim:[.45,.22,.14],hemiS:c3(0xffe0c0),hemiG:c3(0x6a3a2a),hemi:.5,key:c3(0xffd8a8),fill:c3(0xff9f8a),
     cloudLo:c3(0xf3c79e),cloudHi:c3(0xffe2c8),cloudO:.55,mote:[1,.82,.55],moteSize:.2,wind:[6,-.2,-1.5],wob:.6,
     emi:.12,rough:.88,metal:0,env:.35,nrm:1.1,tcaus:0,causC:[1,.9,.7],tspark:.8},
-  winter:{name:'ЗИМА',tex:'snow',pal:[0x5f7896,0x6c6890,0x7c7288,0x5a8480,0x8c8674],
+  winter:{name:'ЗИМА',tex:'snow',fx:'snow',pfx:2,wA:0x5d74a8,wB:0xeaf2ff,dark:'radial-gradient(ellipse at 50% 50%,#0b101c 0%,#020307 75%)',dot:'#eaf3ff',pal:[0x5f7896,0x6c6890,0x7c7288,0x5a8480,0x8c8674],
     zen:[.008,.012,.03],mid:[.035,.05,.10],hor:[.13,.16,.24],low:[.07,.09,.15],neb1:[.25,.3,.5],neb2:[.2,.35,.45],neb:.18,aurA:[.3,.8,.6],aurB:[.4,.5,.8],aur:.22,
     sun:[.72,.8,1],sunDir:[.3,.28,1],sunSize:420,sunGlow:.1,rays:0,planet:0,planetDir:[-.5,.22,1],planetCol:[.8,.8,1],galaxy:0,stars:.75,
     fog:c3(0x1a212f),fogD:.0033,fA:[.07,.09,.14],fB:[.36,.40,.50],fC:[.25,.35,.55],cloud:.25,dune:.75,caus:0,void:0,spark:.45,
     rock:c3(0x39424f),rockE:c3(0x05070b),moss0:c3(0x9ea8bc),moss1:c3(0x8c97ad),rim:[.07,.10,.17],hemiS:c3(0x7584a4),hemiG:c3(0x0e1219),hemi:.26,key:c3(0x8e9fc0),fill:c3(0x3e4c70),
     cloudLo:c3(0x3a4354),cloudHi:c3(0x566074),cloudO:.55,mote:[.8,.85,.95],moteSize:.26,wind:[.3,-1.1,-.2],wob:.7,
     emi:.03,rough:.5,metal:.05,env:.5,nrm:.95,tcaus:0,causC:[.8,.9,1],tspark:.45},
-  space:{name:'КОСМОС',tex:'hex',pal:[0x6ff7ff,0xb46bff,0xff5fd2,0x5dffb0,0xffd36b],
+  space:{name:'КОСМОС',tex:'hex',fx:'star',pfx:3,wA:0xff5a2e,wB:0xffd98a,dark:'radial-gradient(ellipse at 50% 50%,#07050f 0%,#000000 75%)',dot:'#ffffff',pal:[0x6ff7ff,0xb46bff,0xff5fd2,0x5dffb0,0xffd36b],
     zen:[0,0,.015],mid:[.01,.01,.04],hor:[.06,.04,.14],low:[.02,.01,.05],neb1:[.7,.25,.9],neb2:[.1,.6,.9],neb:1.7,aurA:[.3,.6,1],aurB:[.8,.4,1],aur:0,
     sun:[1,.95,.9],sunDir:[.2,.25,1],sunSize:900,sunGlow:.08,rays:0,planet:1,planetDir:[-.5,.22,1],planetCol:[.55,.45,.85],galaxy:1,stars:1.6,
     fog:c3(0x0b0820),fogD:.0012,fA:[.02,.01,.06],fB:[.35,.2,.6],fC:[.2,.5,.9],cloud:0,dune:0,caus:0,void:1,spark:.4,
     rock:c3(0x3b3a4a),rockE:c3(0x08060f),moss0:c3(0x6a6a80),moss1:c3(0x4a4a60),rim:[.25,.45,1],hemiS:c3(0x9aa8ff),hemiG:c3(0x10081c),hemi:.35,key:c3(0xf4f0ff),fill:c3(0x7a5cff),
     cloudLo:c3(0x6040a0),cloudHi:c3(0x4060c0),cloudO:.35,mote:[.8,.9,1],moteSize:.22,wind:[0,0,-4],wob:.1,
     emi:.75,rough:.22,metal:.65,env:1,nrm:.6,tcaus:0,causC:[.5,.8,1],tspark:.35},
-  deep:{name:'ГЛУБИНА',tex:'pearl',pal:[0x5fa8b0,0x6a8fb4,0x8aa4bc,0x6faea2,0x9fb0a8],
+  deep:{name:'ГЛУБИНА',tex:'pearl',fx:'water',pfx:4,wA:0x0b5663,wB:0xa8f5ee,dark:'radial-gradient(ellipse at 50% 50%,#05171c 0%,#010608 75%)',dot:'#c9fbff',pal:[0x5fa8b0,0x6a8fb4,0x8aa4bc,0x6faea2,0x9fb0a8],
     zen:[.10,.32,.40],mid:[.03,.17,.24],hor:[.02,.11,.18],low:[.01,.04,.08],neb1:[.1,.35,.45],neb2:[.15,.45,.5],neb:.2,aurA:[.3,1,.9],aurB:[.5,.8,1],aur:0,
     sun:[.55,.85,.85],sunDir:[0,1,.25],sunSize:10,sunGlow:.3,rays:.5,planet:0,planetDir:[-.5,.22,1],planetCol:[.5,.8,.8],galaxy:0,stars:0,
     fog:c3(0x0a3542),fogD:.0048,fA:[.01,.06,.09],fB:[.08,.22,.26],fC:[.25,.5,.5],cloud:0,dune:.35,caus:.6,void:0,spark:0,
@@ -1239,7 +1326,7 @@ function worldUpdate(dt){
   motes.material.color.fromArray(WS.mote);
 }
 
-let modes=[['SPEED 1.0×',1],['SPEED 0.75×',.75],['SPEED 1.3×',1.3]],mi=0;
+let modes=[['SPEED 1.0×',1],['SPEED 0.75×',.75],['SPEED 1.3×',1.3],['SPEED 1.5×',1.5]],mi=0;
 function toggleSpeed(e){if(e){e.preventDefault();e.stopPropagation()}if(MUS.on){toast('СКОРОСТЬ = ТЕМП ПЕСНИ');return}mi=(mi+1)%modes.length;document.getElementById('speedBtn').textContent=modes[mi][0];resetCP()}
 function doCalibrate(e){if(e){e.preventDefault();e.stopPropagation()}calibrate();toast('ЦЕНТР ОТКАЛИБРОВАН')}
 function toggleAudio(e){if(e){e.preventDefault();e.stopPropagation()}document.getElementById('audioBtn').textContent=audio.toggle()?'ЗВУК':'БЕЗ ЗВУКА';if(MUS.gain)MUS.gain.gain.value=audio.enabled?1:0}
@@ -1421,7 +1508,7 @@ window.runDiagnostics=runDiagnostics;window.test=runDiagnostics;window.S=S;
 // а шарды в этот момент закручиваются быстрее и ближе
 const shards=[],dance={t:-1,dir:1,last:-9,ang:0},WHITE=new THREE.Color(1,1,1);
 for(let i=0;i<5;i++){const g=new THREE.Group(),m=new THREE.Mesh(CRYS_GEO,CRYS[i]);m.scale.set(.1,.3,.1);g.add(m);const gl=glowSprite(PAL[i],1,.35);g.add(gl);scene.add(g);shards.push({g,m,gl,ph:i*TAU/5})}
-const camPrev=V(),vigEl=document.getElementById('vig');let camPrevOk=false,vigA=0,vigShown=0;
+const camPrev=V(),vigEl=document.getElementById('vig');let camPrevOk=false,vigA=0,vigShown=0,camLift=0;
 let look=V(),lookS=V(),camSnapL=true,camT=V(0,34,-8),camUpT=V(0,1,0),slx=0,sly=0,sr=0,craftPitch=0,craftRoll=0,camYOff=2.6,camSnap=true,last=performance.now(),clock=0;
 const hud={speed:document.getElementById('speedHud'),score:document.getElementById('scoreHud'),combo:document.getElementById('comboHud'),dist:document.getElementById('distHud')};
 function frame(now){
@@ -1450,22 +1537,24 @@ function frame(now){
     const s=player.vs,L=s.z1-s.z0,AX=t=>centerX(s,clamp(t,0,1)),AY=t=>along(s,clamp(t,0,1))[0]+Rt(s,clamp(t,0,1)),t0=(player.pos.z-s.z0)/L,rx=player.pos.x-AX(t0),ry=player.pos.y-AY(t0),tc=(player.pos.z-6.5-s.z0)/L,tl=(player.pos.z+Math.min(14,la)-s.z0)/L;
     chase.set(AX(tc)+rx*.45,AY(tc)+ry*.45,player.pos.z-6.5);look.set(AX(tl)+rx*.2,AY(tl)+ry*.2,player.pos.z+Math.min(14,la));upT.set(-rx,-ry,0).normalize();if(s.roll==='curl'||s.roll==='wave'||s.roll==='snake')upT.lerp(V(0,1,0),.55).normalize();slx=sly=0;
   }
-  if(camSnap){camT.copy(chase);camUpT.copy(upT);camSnap=false;camSnapL=true}else{camT.x=lerp(camT.x,chase.x,1-Math.exp(-6.5*dt));camT.y=lerp(camT.y,chase.y,1-Math.exp(-(5.5+Math.abs(v.y)*.3)*dt));camT.z=lerp(camT.z,chase.z,1-Math.exp(-9*dt))}
+  if(camSnap){camT.copy(chase);camUpT.copy(upT);camSnap=false;camSnapL=true;camLift=0}else{camT.x=lerp(camT.x,chase.x,1-Math.exp(-6.5*dt));camT.y=lerp(camT.y,chase.y,1-Math.exp(-(5.5+Math.abs(v.y)*.3)*dt));camT.z=lerp(camT.z,chase.z,1-Math.exp(-9*dt))}
   camUpT.lerp(upT,1-Math.exp(-4*dt));if(camUpT.lengthSq()<1e-4)camUpT.set(0,1,0);camUpT.normalize();
   const cs=player.inV?null:segAt(camT.z);
   // камера всегда остаётся с той же стороны полотна, что и корабль
   if(cs){const q=sample(cs,camT.x,camT.z);if(q){if(!cs.inv&&player.pos.y>q.y&&camT.y<q.y+1.3)camT.y=q.y+1.3;else if(cs.inv&&player.pos.y<q.y&&camT.y>q.y-1.3)camT.y=q.y-1.3}}
   // на виражах и стенках камера не должна уходить под полотно: проверяем всю линию от корабля до камеры
+  if(player.inV)camLift=lerp(camLift,0,1-Math.exp(-4*dt));
   if(!player.inV){let lift=0;for(let k=1;k<=5;k++){const f=k/5,px=lerp(player.pos.x,camT.x,f),pz=lerp(player.pos.z,camT.z,f),ss=segAt(pz);if(!ss||TUBE(ss))continue;const q=sample(ss,px,pz);if(!q)continue;
     const py=lerp(player.pos.y,camT.y,f),sg=ss.inv?-1:1;if(sg*(player.pos.y-q.y)<0)continue;const need=sg*(q.y+sg*1.1-py);if(need>0)lift=Math.max(lift,need/f)}
-    if(lift>0){camT.y+=(player.gravDir<0?-1:1)*Math.min(lift,6);camT.x=lerp(camT.x,player.pos.x,Math.min(.6,lift*.08))}
+    // подъём плавный (не рывком): смещение живёт отдельно и не копится в самой камере
+    camLift=lerp(camLift,Math.min(lift,6),1-Math.exp(-(lift>camLift?12:4)*dt));
     // пока корабль на полотне, камера не выходит за ширину острова — иначе она оказывается за внешней стороной стенки
     const cw=segAt(camT.z);if(player.on&&cw&&!TUBE(cw)&&cw===segAt(player.pos.z)){const tw=clamp((camT.z-cw.z0)/(cw.z1-cw.z0),0,1),hw=halfW(cw,tw)[0]*.85,cx=centerX(cw,tw);camT.x=clamp(camT.x,cx-hw,cx+hw)}}
   // из пространства трассы — в мир с поворотами
-  W(camT.x,camT.y,camT.z,camera.position);camera.up.copy(camUpT);rotY(camera.up,headingAt(camT.z));
-  if(camSnapL){lookS.copy(look);camSnapL=false}else lookS.lerp(look,1-Math.exp(-(6+Math.abs(v.y)*.6+Math.abs(v.x)*.3)*dt));camera.lookAt(W(lookS.x,lookS.y,lookS.z,TV));
+  Wz(camT.x,camT.y+(player.gravDir<0?-1:1)*camLift,camT.z,player.pos.z,camera.position);camera.up.copy(camUpT);rotY(camera.up,headZ(camT.z,player.pos.z));
+  if(camSnapL){lookS.copy(look);camSnapL=false}else lookS.lerp(look,1-Math.exp(-(6+Math.abs(v.y)*.6+Math.abs(v.x)*.3)*dt));camera.lookAt(Wz(lookS.x,lookS.y,lookS.z,player.pos.z,TV));
   // корабль всегда в кадре: чем ближе он к краю, тем быстрее взгляд плавно доворачивает к нему (без рывков)
-  {camera.updateMatrixWorld();const pr=W(player.pos.x,player.pos.y,player.pos.z,V()).project(camera),ex=pr.z>1?1:Math.max(0,Math.abs(pr.x)-.5)/.5+Math.max(0,Math.abs(pr.y)-.45)/.55;if(ex>0){lookS.lerp(player.pos,1-Math.exp(-10*Math.min(ex,1.5)*dt));camera.lookAt(W(lookS.x,lookS.y,lookS.z,TV))}}
+  {camera.updateMatrixWorld();const pr=W(player.pos.x,player.pos.y,player.pos.z,V()).project(camera),ex=pr.z>1?1:Math.max(0,Math.abs(pr.x)-.5)/.5+Math.max(0,Math.abs(pr.y)-.45)/.55;if(ex>0){lookS.lerp(player.pos,1-Math.exp(-10*Math.min(ex,1.5)*dt));camera.lookAt(Wz(lookS.x,lookS.y,lookS.z,player.pos.z,TV))}}
   const kTurn=curvAt(player.pos.z)*SP0*SP0/G;
   sr=lerp(sr,clamp(-player.tilt*.12+kTurn*.35,-.2,.2),1-Math.exp(-5*dt));camera.rotateZ(sr);
   const mOn=MUS.on&&MUS.playing;
@@ -1493,7 +1582,7 @@ function frame(now){
   camPrev.copy(camera.position);camPrevOk=true;
   // в коконе края смыкаются — по краям экрана сгущается темнота
   {let c=0;if(player.inV&&player.vs&&player.vs.roll==='cocoon'){const q=player.vs,u=clamp((player.pos.z-q.z0)/(q.z1-q.z0),0,1);c=Math.sin(Math.PI*u)**2}vigA=lerp(vigA,c*.8,1-Math.exp(-2.5*dt));if(Math.abs(vigA-vigShown)>.008){vigShown=vigA;vigEl.style.opacity=vigA.toFixed(3)}}
-  WORMU.uT.value=clock;WORMU.uA.value.setHex(PAL[0]);WORMU.uB.value.setHex(PAL[1]);
+  {const w=WORLDS[worldName];WORMU.uT.value=clock;WORMU.uA.value.setHex(w.wA);WORMU.uB.value.setHex(w.wB);WORMU.uFx.value=w.pfx}
   const cp3=camera.position;
   for(let i=0;i<MOTE_N;i++){let k=i*3;const f=.6+moteV[k+1],wb=Math.sin(clock*1.3+i)*WS.wob;moteP[k]+=(moteV[k]+WS.wind[0]*f+wb)*dt;moteP[k+1]+=(moteV[k+1]*.4+WS.wind[1]*f)*dt;moteP[k+2]+=(moteV[k+2]+WS.wind[2]*f+wb*.5)*dt;
     let rx=moteP[k]-cp3.x,ry=moteP[k+1]-cp3.y,rz=moteP[k+2]-cp3.z;
