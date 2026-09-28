@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.42</title>
+<title>AetherSurf v0.9.43</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.42 · КРОТОВЫЕ НОРЫ</div>
+  <div class="ver">v0.9.43 · ТРАССА ПО ТАКТАМ</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -304,7 +304,7 @@ function sideBands(N,P,w){
   if(!MUS.on||!MUS.an)return;const pos=[],col=[],c=new THREE.Color(),M=5;
   for(const side of[0,1])for(let i=0;i<N;i++)for(let j=0;j<M;j++){
     const a=i/N,b=(i+1)/N,e0=j/M,e1=(j+1)/M,U=e=>side?1-w*e:w*e,q=[[a,e0],[b,e0],[b,e1],[a,e0],[b,e1],[a,e1]];
-    for(const[t,e]of q){const p=P(t,U(e));pos.push(...p);railColor(p[2]/SP0,c);const f=Math.pow(1-e,1.6);col.push(c.r*f,c.g*f,c.b*f)}}
+    for(const[t,e]of q){const p=P(t,U(e));pos.push(...p);railColor(p[2]/MZ(),c);const f=Math.pow(1-e,1.6);col.push(c.r*f,c.g*f,c.b*f)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));tgt.add(new THREE.Mesh(g,BANDMAT));
 }
 function railAt(s,q,t1,r,color,opa){const pts=[],sg=s.inv?-1:1;for(let k=0;k<=40;k++){const t=k/40*t1,z=lerp(s.z0,s.z1,t),x=centerX(s,t)+q*halfW(s,t)[0];pts.push(V(x,surfY(s,x,z)+sg*.16,z))}addRail(pts,r,color,opa)}
@@ -464,7 +464,7 @@ function makeRing(d){
    доли, фразы и части песни заранее раскладываются по трассе. Анализ прямо в браузере: темп и доли (спектральный поток
    + динамическое программирование), такты, части песни (смена тембра и громкости по тактам, повторы — один «мотив»),
    фразы (провалы вокальной полосы или строки .lrc). */
-const MUS={on:false,ready:false,an:null,buf:null,name:'',query:'',lines:null,li:0,seed:1,src:null,gain:null,t0:0,off:0,playing:false,gt:0,
+const MUS={m:1.3,on:false,ready:false,an:null,buf:null,name:'',query:'',lines:null,li:0,seed:1,src:null,gain:null,t0:0,off:0,playing:false,gt:0,
   slots:null,si:0,bi:0,wi:0,pi:0,word:0,line:0,voc:0,hold:0,pulse:0,bar:0,en:.45,sec:-1,tint:new THREE.Color(1,1,1),st0:null};
 const SEC_RU={intro:'вступление',verse:'куплет',build:'подъём',peak:'припев',break:'брейк',outro:'финал'};
 const SEC_COL={intro:'#8c7fd6',verse:'#62b9d8',build:'#ffb3e0',peak:'#ffe0f4',break:'#4f5fb8',outro:'#a79ae0'};
@@ -583,6 +583,8 @@ async function analyzeTrack(buf,prog){
 }
 // раскладка песни по сетке тактов: посадка всегда на первую долю такта, взлёт — за две доли до следующей;
 // острова длиной в целое число тактов, поэтому ритм трассы можно предугадать, как в самой песне
+// скорость полёта под трек: от темпа (≈1.3× на 100 BPM, до 1.5× на быстрых), секунда песни = SP0·m единиц пути
+const musicSpeed=bpm=>clamp(1.3*Math.pow(bpm/100,.4),1.2,1.5),MZ=()=>SP0*(MUS.on||MUS.planning?MUS.m:1);
 function planSong(an,lines){return lines&&lines.filter(l=>l.text).length>=4?planLyrics(an,lines):planGrid(an)}
 const syl=t=>{const m=String(t).toLowerCase().match(/[aeiouyаеёиоуыэюя]+/g);return m?m.length:1};
 const isVocalise=t=>{const w=String(t).toLowerCase().split(/[^a-zа-яё]+/).filter(Boolean);return w.length>0&&w.every(x=>/^(h?[oaeuy]+h*|oo+h|ah+|yeah|la|na|hey|mm+|whoa|uh+|ooh|ho+|о+|а+|ла|на|эй|у+)$/.test(x))};
@@ -601,10 +603,22 @@ function planLyrics(an,lines){
       if(j!=null&&W[i]-W[j]<Math.max(.14,bl/4)){if(WS[i]>WS[j])sel[sel.length-1]=i;continue}sel.push(i)}
     if(sel.length>n)sel=sel.slice().sort((x,y)=>WS[y]-WS[x]).slice(0,n).sort((x,y)=>x-y);return sel.map(i=>Math.max(a,W[i]))};
   const push=o=>{const p=slots[slots.length-1];if(o.t1-o.t0<.6&&p){p.t1=o.t1;p.gap=o.gap;p.stream=o.stream;p.launch=o.launch;p.words=(p.words||[]).concat(o.words||[]);return}slots.push(o)};
-  const fill=(a,b)=>{const lands=[];let last=a;for(const t of an.barT){if(t<=a+1.5||t>=b-1.8)continue;if(t-last>=3.6){lands.push(t);last=t}}
-    const seq=[a,...lands,b];for(let i=0;i+1<seq.length;i++){const t0=seq[i],nb=seq[i+1],si=secAt(t0),ty=an.secs[si].type;let gap=Math.min(gT,(nb-t0)*.4),stream=null;
-      if(i>0&&i+2<seq.length&&(ty==='intro'||ty==='break'||ty==='outro')&&nb-t0>4.4&&mr()<.35){gap=Math.min(3.4,(nb-t0)*.45);stream='glide'}
+  const barLen=an.barT.length>2?(an.barT[an.barT.length-1]-an.barT[0])/(an.barT.length-1):4*bl;
+  const hopT=bl>=.42?bl:2*bl; // прыжок между островами строки — одна доля (на быстрых песнях — две)
+  // проигрыш: острова по такту, прыжок на долю; изредка в брейке — поток
+  const fill=(a,b)=>{const lands=[];let last=a;const step=Math.max(barLen*.9,1.6);for(const t of an.barT){if(t<=a+step*.8||t>=b-step*.7)continue;if(t-last>=step){lands.push(t);last=t}}
+    const seq=[a,...lands,b];for(let i=0;i+1<seq.length;i++){const t0=seq[i],nb=seq[i+1],si=secAt(t0),ty=an.secs[si].type;let gap=Math.min(hopT,(nb-t0)*.4),stream=null;
+      if(i>0&&i+2<seq.length&&(ty==='break'||ty==='outro')&&nb-t0>3.2&&mr()<.15){gap=Math.min(2.6,(nb-t0)*.45);stream='glide'}
       push({t0,t1:nb-gap,gap,sec:si,stream,words:[]})}};
+  // строка — цепочка островов по такту (распев — по два, если это не дольше 4 с): взлёт на доле, в промежутке между словами
+  const wordDist=t=>{let d=1e9;for(const w of W){const e=Math.abs(w-t);if(e<d)d=e;if(w>t+2)break}return d};
+  const split=(base,a,tk,tail)=>{const piece=(base.voc&&barLen*2<=4.2)||barLen<1.7?2*barLen:barLen,cuts=[],minT=tail.launch?Math.max(piece*.9,2.2):piece*.35;let cur=a;
+    // взлёт перед дропом (свеча) остаётся длинным — ей нужен разгон
+    while(tk-cur>piece*1.15&&tk-cur>minT+piece*.5+hopT){const tgt=cur+piece-hopT;let best=null,bs=-1e9;
+      for(const q of beats){if(q<tgt-bl*1.01)continue;if(q>tgt+bl*1.01)break;if(q-cur<piece*.5||tk-(q+hopT)<minT)continue;const sc=wordDist(q+hopT*.5)-Math.abs(q-tgt)*.3;if(sc>bs){bs=sc;best=q}}
+      if(best==null)break;const nx=snapB(best+hopT);cuts.push([cur,best,nx]);cur=nx}
+    cuts.forEach(([t0,t1,nx],i)=>push({...base,key:base.key+'#'+i,lk:base.key,t0,t1,gap:nx-t1,words:base.words.filter(w=>w>=t0&&w<nx)}));
+    push({...base,key:base.key+'#'+cuts.length,lk:base.key,t0:cur,t1:tk,gap:tail.gap,stream:tail.stream||null,launch:tail.launch,words:base.words.filter(w=>w>=cur)})};
   if(M[0].t>=1.2)fill(0,M[0].t);
   M.forEach((l,i)=>{
     const a=l.t,b=i+1<M.length?M[i+1].t:null,end=b??Math.min(dur,a+8),ns=syl(l.text);
@@ -612,18 +626,16 @@ function planLyrics(an,lines){
     const le=words[words.length-1]+Math.min(.35,bl*.6),si=secAt(a);
     const launch=b!=null&&an.secs[si].type!=='peak'&&an.secs.some(q=>q.type==='peak'&&q.t0>a+1&&Math.abs(q.t0-b)<bl*4);
     const base={sec:si,text:l.text,key:l.text.toLowerCase().replace(/[^a-zа-яё0-9 ]/gi,'').replace(/\s+/g,' ').trim(),voc:isVocalise(l.text),dens:ns/Math.max(.5,le-a),words};
-    if(b==null){const tk=Math.min(dur-gT,Math.max(a+.9,le));push({...base,t0:a,t1:tk,gap:gT});if(dur-(tk+gT)>2)fill(tk+gT,dur);return}
+    if(b==null){const tk=Math.min(dur-gT,Math.max(a+.9,le));split(base,a,tk,{gap:gT});if(dur-(tk+gT)>2)fill(tk+gT,dur);return}
     const gN=b-le;
-    if(gN>4.2){const tk=Math.max(a+.9,le),land=snapB(tk+gT);push({...base,t0:a,t1:tk,gap:land-tk});fill(land,b);return}
-    let tk,gap,stream=null;
-    if(gN>=2.1){tk=le;gap=b-tk;stream='glide'}
-    else if(gN>=.5){tk=le;gap=b-tk}
+    // долгая пауза после строки — не пассивный поток, а острова по тактам до следующей строки
+    if(gN>2.1&&!launch){const tk=Math.max(a+.9,le),land=snapB(tk+hopT);split(base,a,tk,{gap:land-tk});fill(land,b);return}
+    let tk,gap;
+    if(gN>=.5){tk=le;gap=b-tk}
     else{gap=Math.min(Math.max(.55,gT*.8),(b-a)*.35);tk=b-gap}
-    if(launch&&gap>1.9){tk=b-1.9;gap=1.9;stream=null}
+    if(launch&&gap>1.9){tk=b-1.9;gap=1.9}
     if(launch&&gap<1){gap=Math.min(1.3,(b-a)*.4);tk=b-gap}
-    if(tk-a>8.5){const c=(a+tk)/2,mid=words.reduce((q,w)=>Math.abs(w-c)<Math.abs(q-c)?w:q,c),sp=snapB(mid);
-      push({...base,t0:a,t1:sp-gT*.8,gap:gT*.8,words:words.filter(w=>w<sp)});push({...base,t0:sp,t1:tk,gap,stream,launch,words:words.filter(w=>w>=sp)});return}
-    push({...base,t0:a,t1:tk,gap,stream,launch});
+    split(base,a,tk,{gap,launch});
   });
   slots[0].t0=0;
   const cnt={};slots.forEach(q=>{q.k=cnt[q.sec]=(cnt[q.sec]??-1)+1});slots.forEach(q=>q.n=cnt[q.sec]+1);
@@ -634,23 +646,23 @@ function planGrid(an){
   const bl=60/an.bpm,bars=an.barT,slots=[],MINI=.9;
   let rs=MUS.seed;const mr=()=>(rs=(rs*16807)%2147483647)/2147483647;
   const pick=(lo,hi,pref)=>{for(const n of pref)if(n*bl>=lo&&n*bl<=hi)return n;return pref[0]};
-  const gT=pick(.62,1.3,[2,1,4,3])*bl,dT=pick(1.05,1.9,[4,3,2,6,8])*bl;
+  const gT=pick(.42,1,[1,2])*bl,dT=pick(1.05,1.9,[4,3,2,6,8])*bl;
   const bi=t=>{let b=0;while(b+1<bars.length&&bars[b+1]<=t+1e-3)b++;return b};
-  const TGT={intro:6,verse:4,peak:5.5,break:6,outro:6};
+  const TGT={intro:3.4,verse:2.4,peak:2.4,break:3.4,outro:3.6};
   an.secs.forEach((sec,si)=>{
     const last=si===an.secs.length-1,b0=bi(sec.t0),b1=last?bars.length-1:bi(an.secs[si+1].t0),nb=b1-b0;if(nb<=0)return;
     const barLen=(bars[b1]-bars[b0])/nb,tgt=TGT[sec.type];
     let k=[1,2,4].reduce((a,b)=>Math.abs(b*barLen-tgt)<Math.abs(a*barLen-tgt)?b:a,1);
     // разбиение части на острова (в тактах); перед припевом — «разгон» короткими прыжками по такту
     const sizes=[];let rem=nb;const hops=sec.build?Math.min(nb>=6?(barLen<2.4?2:1):nb>=3?1:0,nb-1):0;rem-=hops;
-    while(rem>0){const q=Math.min(k,rem);sizes.push(q);rem-=q}
+    const pat=k===1&&nb>=4&&barLen*2<=4.4?[1,1,2]:[k];let pi=0;while(rem>0){const q=Math.min(pat[pi++%pat.length],rem);sizes.push(q);rem-=q} // такт, такт, два такта — ритм и место для длинных элементов
     if(sizes.length>1&&sizes[sizes.length-1]<k&&sizes[sizes.length-1]+sizes[sizes.length-2]<=6){const r=sizes.pop();sizes[sizes.length-1]+=r}
     for(let h=0;h<hops;h++)sizes.push(1);
     let b=b0;
     sizes.forEach((q,j)=>{
       const lastIs=j===sizes.length-1,t0=bars[b],tb=bars[b+q];
       let gap=lastIs&&sec.build&&!last?dT:gT,stream=null;
-      if(!lastIs&&j>0&&(sec.type==='intro'||sec.type==='break'||sec.type==='outro')&&mr()<.4){const g2=barLen>=2?barLen:2*barLen;if(tb-g2-t0>=1.6){gap=g2;stream='glide'}}
+      if(!lastIs&&j>0&&(sec.type==='break'||sec.type==='outro')&&mr()<.15){const g2=barLen>=2?barLen:2*barLen;if(tb-g2-t0>=1.6){gap=g2;stream='glide'}}
       else if(sec.build&&j===0&&!lastIs&&q>=2){const g2=barLen>=2?barLen:2*barLen;if(tb-g2-t0>=1.4){gap=g2;stream='up'}}
       const t1=last&&lastIs?an.dur-gT:tb-gap;
       if(t1-t0<MINI&&slots.length){const p=slots[slots.length-1];p.t1=t1;p.gap=gap;p.launch=lastIs&&sec.build&&!last;p.stream=stream;p.bars+=q}
@@ -677,18 +689,22 @@ const MSET={
 Object.assign(MSET.intro,{manta:1,rock:.8,breath:.8});Object.assign(MSET.verse,{ridge:1,swap:1,rock:.8,breath:.8});Object.assign(MSET.peak,{pearl:1.2,nozzle:1,ridge:.8,swap:.8,cocoon:.8});
 Object.assign(MSET.break,{manta:1,cocoon:1.1,breath:.8});Object.assign(MSET.outro,{manta:.8,rock:.6});
 Object.assign(LR,{rock:[50,130],ridge:[44,120],pearl:[44,100],nozzle:[40,90],swap:[44,120],manta:[50,130],breath:[46,120],cocoon:[60,120]});
+// короткие острова по тактам: те рампы, что нормально сжимаются, пускаем и на острова покороче
+Object.assign(LR,{crescent:[34,110],berm:[28,70],saddle:[26,80],well:[30,80],hills:[36,90],sweep:[40,110],esses:[40,100],ribbon:[40,110],wave:[32,80],vortex:[30,70],barrel:[28,64],curl:[36,80],tornado:[32,70],
+  manta:[40,130],rock:[40,130],ridge:[36,120],swap:[36,120],breath:[38,120],arcRibbon:[42,100],hillRibbon:[40,90],
+  camel:[38,70]}); // короткий горб подбрасывает корабль над всем островом мимо трамплина
 const TUBEK=['pearl','nozzle','cocoon','worm','coil','arcRibbon','hillRibbon','vortex','tornado','serp','wave','barrel','double','snake','curl','screw','spiral'];
 function melodyIn(t0,t1){const an=MUS.an,a=clamp(Math.floor(t0*an.fps),0,an.mel.length-1),b=clamp(Math.floor(t1*an.fps),a+1,an.mel.length);let s=0;for(let i=a;i<b;i++)s+=an.mel[i];
   const q=Math.max(1,Math.floor((b-a)/4)),m0=an.mel[a+Math.min(q,b-a-1)],m1=an.mel[Math.max(a,b-1-q)];return{m:s/(b-a),d:m1-m0}}
 function planMusicChunk(){
-  const sl=MUS.slots[MUS.si++],an=MUS.an,sec=an.secs[sl.sec],ty=sec.type,L=(sl.t1-sl.t0)*SP0,y=gen.y,mel=melodyIn(sl.t0,sl.t1);
+  const sl=MUS.slots[MUS.si++],an=MUS.an,sec=an.secs[sl.sec],ty=sec.type,L=(sl.t1-sl.t0)*MZ(),y=gen.y,mel=melodyIn(sl.t0,sl.t1);
   const tilted=['road','wall','twist','lanes','berm','helix'].includes(gen.last);
   // мотив: та же часть песни и то же место в ней → тот же элемент (повтор припева узнаётся)
   let th=sl.key?hashStr(sl.key):((sec.cl+1)*7919+sl.k*104729+ty.length*31)%2147483646+1;const tr=()=>(th=(th*16807)%2147483647)/2147483647;
   gen.phase=sec.build?72:ty==='peak'?(sl.k===0?-12:8):ty==='break'?-18:ty==='outro'?-30:ty==='intro'?16:4+(sec.cl%3)*9+(mel.m-.5)*22;
   let o,key='';
   if(sl.stream){o=T.carrier(sl.stream,sl.stream==='up'?{toRel:rr(20,28)}:{toRel:clamp(gen.phase-y,-12,6)});
-    const nxs=MUS.slots[MUS.si];if(sl.stream==='glide'&&y<6&&nxs&&nxs.sec===sl.sec&&!nxs.launch&&!nxs.stream&&(nxs.t1-nxs.t0)*SP0>=LR.cloud[0]){o.toAbs=SEA+3;gen.cloudNext=true}}
+    const nxs=MUS.slots[MUS.si];if(sl.stream==='glide'&&y<6&&nxs&&nxs.sec===sl.sec&&!nxs.launch&&!nxs.stream&&(nxs.t1-nxs.t0)*MZ()>=LR.cloud[0]){o.toAbs=SEA+3;gen.cloudNext=true}}
   else if(gen.cloudNext){gen.cloudNext=false;o=T.cloud();key='cloud'}
   else if(gen.chain>0){o=T.ceil(gen.pfs[gen.chain%gen.pfs.length],gen.chain===1);gen.chain--}
   else if(sl.launch){ // последний взлёт перед припевом: свеча, портал в верхней точке, посадка ровно на «дроп»
@@ -711,7 +727,7 @@ function planMusicChunk(){
     use(key);o=T[key]();
   }
   if(key)gen.last=key;else gen.last='';
-  o.L=L;o.gapU=sl.gap*SP0;o.slot=sl;o.c=(sec.cl*2+(ty==='peak'?2:0))%5;
+  o.L=L;o.gapU=sl.gap*MZ();o.slot=sl;o.c=(sec.cl*2+(ty==='peak'?2:0))%5;
   if(sl.finale)o.portal=true;
   if(o.dFix!=null&&o.yc==='drop')o.dFix=-clamp(L*.55,18,34);
   // мелодия ведёт трассу: вверх по тону — плавный уход в сторону, «волна» в голосе — S-изгиб
@@ -720,13 +736,13 @@ function planMusicChunk(){
   // волны-роллеры — провалы на 1-й и 3-й доле (бочка): корабль «качается» в такт
   const bl=60/an.bpm,nbt=Math.round((sl.t1-sl.t0)/bl),flat=!o.rb&&!o.turn&&!TUBE(o)&&!o.inv&&o.pf!=='cloud'&&!o.yc&&!o.hump&&!o.sag&&!o.camel&&!o.well&&!o.thin&&!o.stream&&!o.fx2&&!o.rk&&!o.br;
   const inW=(sl.words||[]).filter(w=>w>sl.t0+.22&&w<sl.t1-.22);
-  if(flat&&inW.length>=2){const sp=Math.min(.5,...inW.slice(1).map((w,i)=>w-inW[i])),w=clamp(sp*SP0*.45,2.2,5);o.wd=inW.map(x=>(x-sl.t0)/(sl.t1-sl.t0)).filter(c=>c*L>=w+2&&(1-c)*L>=w+7);o.wdW=w;o.wdA=Math.min(1,.03*w*w*G/24);if(!o.wd.length)o.wd=null}
+  if(flat&&inW.length>=2){const sp=Math.min(.5,...inW.slice(1).map((w,i)=>w-inW[i])),w=clamp(sp*MZ()*.45,2.2,5);o.wd=inW.map(x=>(x-sl.t0)/(sl.t1-sl.t0)).filter(c=>c*L>=w+2&&(1-c)*L>=w+7);o.wdW=w;o.wdA=Math.min(1,.03*w*w*G/24);if(!o.wd.length)o.wd=null}
   const slalomOK=!(sl.words&&sl.words.length)&&flat&&!o.ax&&!o.b0&&!o.b1&&!['wall','scoop','road','lanes'].includes(o.pf)&&!o.ws&&nbt>=4;
   if(slalomOK&&(ty!=='peak'||tr()<.5)){o.ax=(ty==='peak'?2.4:3)*(tr()<.5?-1:1);o.an=Math.floor(nbt/2)/2;o.autoBank=true}
-  if(flat&&!o.wd&&nbt>=4&&(ty==='peak'||ty==='verse'||sec.build)){o.rb=Math.min(1.6,5.3*bl*bl*G/24)*(ty==='peak'?1:.7);o.rbn=nbt/2}
-  if(sl.hop&&flat&&!sl.launch&&!o.rb){o.rb=Math.min(1.2,4*bl*bl*G/24);o.rbn=Math.max(1,Math.round(nbt/2))}
+  if(flat&&!o.wd&&nbt>=4&&(ty==='peak'||ty==='verse'||sec.build)){o.rb=Math.min(1.6,5.3*(bl*MUS.m)**2*G/24)*(ty==='peak'?1:.7);o.rbn=nbt/2}
+  if(sl.hop&&flat&&!sl.launch&&!o.rb){o.rb=Math.min(1.2,4*(bl*MUS.m)**2*G/24);o.rbn=Math.max(1,Math.round(nbt/2))}
   // поворот трассы: фраза за фразой влево-вправо, припев — широкие дуги, перед дропом — прямой разгон
-  if(sl.k===0)gen.tdir=tr()<.5?-1:1;else gen.tdir=-(gen.tdir||1);
+  if(sl.k===0)gen.tdir=tr()<.5?-1:1;else if(!(sl.lk&&sl.lk===gen.lastLk))gen.tdir=-(gen.tdir||1);gen.lastLk=sl.lk;
   const hd=headingAt(gen.z);if(Math.abs(hd)>1.7&&Math.sign(hd)===gen.tdir)gen.tdir=-gen.tdir;
   o.turn=o.turn!=null&&!sl.launch?o.turn:sl.launch?0:gen.tdir*({intro:.6,verse:1,peak:1.4,break:.8,outro:.55}[ty])*(sec.build?.55:1)*(.8+.4*tr());
   return[o];
@@ -736,7 +752,8 @@ function beatRings(s,sl){
   if(TUBE(s)||s.pf==='cloud')return;const an=MUS.an,sec=an.secs[sl.sec],every=sec.build?1:sec.type==='peak'?2:sec.type==='verse'?4:0;if(!every)return;
   let n=0;const L=s.z1-s.z0;
   for(let k=0;k<an.beats.length&&n<10;k++){const t=an.beats[k];if(t<sl.t0+.35)continue;if(t>sl.t1-.35)break;if(an.bpos[k]%every)continue;
-    const z=t*SP0,tt=clamp((z-s.z0)/L,0,1),x=centerX(s,tt),q=sample(s,x,z,true);
+    // кольца змейкой: влево-вправо по долям (в припеве шире) — за ними надо рулить
+    const z=t*MZ(),tt=clamp((z-s.z0)/L,0,1),x=centerX(s,tt)+(n%2?1:-1)*(sec.type==='peak'?.45:.35)*halfW(s,tt)[0],q=sample(s,x,z,true);
     makeRing({x,y:s.inv?q.y-R-1.25:q.y+R+1.25,z,r:2.3,c:PAL[(s.c+1)%5],beat:true});n++}
 }
 // ноты-слова: светящийся шар на каждом слоге, ровно там, где корабль будет, когда слог звучит; сбоку — по высоте мелодии
@@ -744,7 +761,7 @@ const ORBTEX=canvasTex(64,64,(x)=>{const g=x.createRadialGradient(32,32,0,32,32,
 const ORBS=[],ORBMAT=new THREE.PointsMaterial({size:2.8,map:ORBTEX,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});ORBMAT.userData.shared=true;
 function wordOrbs(s,sl,gap,l){
   if(!sl.words||!sl.words.length)return;const an=MUS.an,L=s.z1-s.z0,pos=[],col=[],c=new THREE.Color(),list=[];
-  for(const tw of sl.words){const z=tw*SP0;if(z<s.z0+1||z>s.z1+gap-1)continue;const m=clamp((an.mel[clamp(Math.floor(tw*an.fps),0,an.mel.length-1)]-.5)*2.2,-1,1);let x,y;
+  for(const tw of sl.words){const z=tw*MZ();if(z<s.z0+1||z>s.z1+gap-1)continue;const m=clamp((an.mel[clamp(Math.floor(tw*an.fps),0,an.mel.length-1)]-.5)*2.2,-1,1);let x,y;
     if(z<=s.z1){const t=(z-s.z0)/L;if(TUBE(s)){const ph=s.pf==='vortex'?m*(s.torn?.6:1.1):s.roll==='curl'?m*.8:m*s.hw*.8,P=tubePos(s,t,roadAng(s,t)+ph);x=P.x;y=P.y}
       else{x=centerX(s,t)+m*halfW(s,t)[0]*.45;const q=sample(s,x,z,true);y=s.inv?q.y-R:q.y+R}}
     else if(s.stream){const P=streamPt(s.stream,clamp((z-s.z1)/gap,0,1));x=P.x+m*1.5;y=P.y}
@@ -768,7 +785,7 @@ function lyricSprite(text){
 }
 function lyricsFor(s,gap,l){
   if(!MUS.lines)return;const z1=s.z1+gap;
-  while(MUS.li<MUS.lines.length){const ln=MUS.lines[MUS.li],z=(ln.t+1)*SP0;if(z>=z1)break;MUS.li++;if(!ln.text||z<s.z0)continue;
+  while(MUS.li<MUS.lines.length){const ln=MUS.lines[MUS.li],z=(ln.t+1)*MZ();if(z>=z1)break;MUS.li++;if(!ln.text||z<s.z0)continue;
     let x,y;if(z<=s.z1){const tt=(z-s.z0)/(s.z1-s.z0);x=centerX(s,tt);y=(TUBE(s)?along(s,tt)[0]+2*Rt(s,tt):sample(s,x,z,true).y)+(s.inv?-5:5)}
     else{const T2=(z-s.z1)/SP0;x=s.x1+(s.x1-s.x0)/(s.z1-s.z0)*(z-s.z1);y=l.cy+l.vy*T2-.5*G*T2*T2+6}
     const sp=lyricSprite(ln.text);sp.position.set(x,y,z);tgt.add(sp);curRec.lyr.push(sp)}
@@ -798,7 +815,7 @@ async function loadTrack(ab,fname){
   try{
     const buf=await decodeAudio(ab);prog(.1);await idle();
     const an=await analyzeTrack(buf,prog);
-    MUS.buf=buf;MUS.an=an;MUS.lines=null;MUS.seed=(Math.round(an.dur*1000)*48271%2147483646)+1;MUS.slots=planSong(an,null);MUS.ready=true;
+    MUS.buf=buf;MUS.an=an;MUS.lines=null;MUS.seed=(Math.round(an.dur*1000)*48271%2147483646)+1;MUS.m=musicSpeed(an.bpm);MUS.slots=planSong(an,null);MUS.ready=true;
     musicSummary();$('musicActions').style.display='flex';findLyrics();
   }catch(e){console.error(e);musicInfo('Не получилось прочитать файл. Подойдут mp3, m4a, wav, ogg.')}
   $('anaBar').style.display='none';
@@ -830,7 +847,7 @@ function musicPlay(at){
 // промах: песня замирает и через мгновение продолжается с того места, где корабль сорвался (чуть раньше, для разгона)
 function musicFail(){
   const zf=player.lastOn??player.pos.z,s=S.find(q=>q.z0<=zf&&q.z1>=zf)||cpSeg,z=Math.max(s.z0+1,Math.min(zf-SP0*1.2,s.z1-SP0*1.2));
-  cpSeg=s;resetCP(z);player.lastOn=z;musicStop();MUS.gt=z/SP0;MUS.hold=.9;musicSeekFX(MUS.gt);MUS.pulse=MUS.bar=MUS.word=MUS.line=0;
+  cpSeg=s;resetCP(z);player.lastOn=z;musicStop();MUS.gt=z/MZ();MUS.hold=.9;musicSeekFX(MUS.gt);MUS.pulse=MUS.bar=MUS.word=MUS.line=0;
 }
 function musicSeekFX(t){const b=MUS.an.beats;let i=0;while(i<b.length&&b[i]<=t)i++;MUS.bi=i;MUS.wi=MUS.an.words.findIndex(w=>w>t);if(MUS.wi<0)MUS.wi=MUS.an.words.length;const ph=phraseTimes();MUS.pi=ph.findIndex(w=>w>t);if(MUS.pi<0)MUS.pi=ph.length;let s=0;while(s+1<MUS.an.secs.length&&MUS.an.secs[s+1].t0<=t)s++;MUS.sec=s}
 function musicStop(){MUS.playing=false;if(MUS.src){try{MUS.src.onended=null;MUS.src.stop()}catch(e){}MUS.src=null}}
@@ -838,7 +855,7 @@ function musicStop(){MUS.playing=false;if(MUS.src){try{MUS.src.onended=null;MUS.
 function musicRespawn(zt){
   const z=zt??player.pos.z;for(let i=0;i<300&&gen.z<z+AHEAD;i++)buildNext();let s=S.find(q=>q.z0<=z&&q.z1-8>z);
   if(s){cpSeg=s;resetCP(z);return}
-  s=S.find(q=>q.z0>z)||S[S.length-1];cpSeg=s;resetCP(s.z0+1);musicPlay((s.z0+1)/SP0);
+  s=S.find(q=>q.z0>z)||S[S.length-1];cpSeg=s;resetCP(s.z0+1);musicPlay((s.z0+1)/MZ());
 }
 // фразы: строки текста, если он есть, иначе паузы в вокале
 function phraseTimes(){if(MUS.lines)return MUS._lt||(MUS._lt=MUS.lines.filter(l=>l.text).map(l=>l.t));return MUS.an.phr}
@@ -879,11 +896,11 @@ function startMusic(e){
   if(!MUS.ready)return;
   musicPrime();audio.musicMode(true);
   $('start').style.display='none';$('finish').classList.remove('on');$('touch').style.display='flex';document.body.classList.add('playing','music');
-  mi=0;$('speedBtn').textContent='♪ '+Math.round(MUS.an.bpm)+' BPM';
+  mi=0;$('speedBtn').textContent='♪ '+Math.round(MUS.an.bpm)+' BPM · '+MUS.m.toFixed(2)+'×';
   const an=MUS.an;$('progress').firstChild.style.background='linear-gradient(90deg,'+an.secs.map(s=>{const c=SEC_COL[s.build&&s.type!=='peak'?'build':s.type];return`${c} ${(100*s.t0/an.dur).toFixed(2)}%,${c} ${(100*s.t1/an.dur).toFixed(2)}%`}).join(',')+')';
   started=true;MUS.on=true;MUS.si=0;MUS.li=0;MUS.tint.setRGB(1,1,1);player.demo=false;player.score=0;player.combo=1;MUS.st0=Object.assign({},stats);
   resetWorld(MUS.seed);
-  musicPlay(player.pos.z/SP0);
+  musicPlay(player.pos.z/MZ());
   enableSensors();
 }
 function toMenu(e){if(e){e.preventDefault();e.stopPropagation()}musicStop();MUS.on=false;started=false;player.demo=true;audio.musicMode(false);$('finish').classList.remove('on');$('start').style.display='flex';document.body.classList.remove('playing','music');$('touch').style.display='none';$('speedBtn').textContent=modes[mi][0]}
@@ -989,7 +1006,7 @@ function planChunk(){
 }
 function buildNext(){
   while(gen.q.length<2)gen.q.push(...planChunk());
-  const p=gen.q.shift();if(p.slot)gen.z=p.slot.t0*SP0;const nx=gen.q[0],z=gen.z,x=gen.x,y=gen.y;
+  const p=gen.q.shift();if(p.slot)gen.z=p.slot.t0*MZ();const nx=gen.q[0],z=gen.z,x=gen.x,y=gen.y;
   const sx=p.sx??clamp(rr(-7,7)-x*.3,-9,9);
   const gap=p.gapU??(p.stream?(p.gap||rr(38,50)):(p.gap??(p.inv&&nx.inv?9:(MUS.on||TUBE(nx)||nx.inv?10:rr(12,14.5)))));
   const gdir=(p.inv&&nx.inv)?-1:1,Tt=gap/SP0,Gg=G*(p.fg||1);
@@ -1364,7 +1381,7 @@ function streamAt(z){for(const s of S)if(s.stream&&z>s.z1&&z<s.z1+s.gap)return s
 function flash(a){if(player.demo)return;const f=document.getElementById('flash');f.style.opacity=a;setTimeout(()=>f.style.opacity=0,90)}
 let toastT=0;function toast(t,ms=1500){if(player.demo)return;const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),ms)}
 function resetCP(zAt){wormCancel();
-  const sp=SP0*modes[mi][1],s=cpSeg,L=s.z1-s.z0,z=zAt??s.z0+Math.min(2,L*.1),t=(z-s.z0)/L;
+  const sp=SP0*(MUS.on?MUS.m:modes[mi][1]),s=cpSeg,L=s.z1-s.z0,z=zAt??s.z0+Math.min(2,L*.1),t=(z-s.z0)/L;
   player.inV=false;player.vs=null;player.phi=player.phiV=0;player.loop=0;
   player.on=true;player.air=0;player.fallT=0;player.noLand=0;player.tilt=player.pitch=0;camSnap=true;
   if(TUBE(s)){const th=roadAng(s,t),vp=tubePos(s,t,th);player.gravDir=1;player.pos.set(vp.x,vp.y,z);player.vel.set(0,along(s,t)[1]*sp,sp);player.inV=true;player.vs=s;player.th=th;camYOff=2.6;return}
@@ -1378,7 +1395,7 @@ function cpUpdate(){if(!player.on)return;const s=segAt(player.pos.z);if(s&&s.idx
 function nearSpan(z){let lo=1e9,hi=-1e9;for(const s of S)if(s.z1>z-15&&s.z0<z+60){lo=Math.min(lo,s.y0,s.y1);hi=Math.max(hi,s.y0,s.y1+s.top)}return{lo,hi}}
 function physics(dt){
   if(dt<=0)return;
-  const m=modes[mi][1],sp=SP0*m,g=G*m*m,c=manual();
+  const m=MUS.on?MUS.m:modes[mi][1],sp=SP0*m,g=G*m*m,c=manual();
   let tt=c.r||gyroTilt,tp=c.p||gyroPitch;if(player.demo)tt=tp=0;
   player.tilt=lerp(player.tilt,tt,1-Math.exp(-14*dt));
   player.pitch=lerp(player.pitch,tp,1-Math.exp(-12*dt));
@@ -1456,6 +1473,11 @@ function physics(dt){
       player.prevGz=vzc;
     }
   }else player.on=false;
+  // отрыв с кромки: вертикальная скорость подтягивается к расчётной — на извилистых и накренённых островах она зависела
+  // от того, где корабль на ширине, и на длинном прыжке это оборачивалось недолётом; дальше в полёте тангаж работает как обычно
+  if(player.on&&s&&!player.inV)player.lastSeg=s;
+  else if(wasOn&&!player.on&&!player.inV&&player.lastSeg){const ls=player.lastSeg;player.lastSeg=null;
+    if(!ls.inv&&!TUBE(ls)&&player.pos.z>=ls.z1-1){const nx=S[S.indexOf(ls)+1],L0=launch(ls,!!(nx&&nx.inv));player.vel.y=lerp(player.vel.y,L0.vy*m,.8)}}
 
   const st=(!player.on&&!player.inV)?streamAt(player.pos.z):null;
   if(st){
@@ -1526,7 +1548,7 @@ function frame(now){
   streamWorld();
   const n=Math.max(1,Math.ceil(dt*120));for(let i=0;i<n;i++)physics(dt/n);
   // корабль всегда там, где сейчас песня: мелкий уход подтягиваем, после долгого подвисания — переносим
-  if(MUS.on&&MUS.playing){const err=MUS.gt*SP0-player.pos.z;if(Math.abs(err)>SP0*.5)musicRespawn(MUS.gt*SP0);else if(Math.abs(err)>.02)player.pos.z+=err*Math.min(1,dt*6)}
+  if(MUS.on&&MUS.playing){const err=MUS.gt*MZ()-player.pos.z;if(Math.abs(err)>SP0*.5)musicRespawn(MUS.gt*MZ());else if(Math.abs(err)>.02)player.pos.z+=err*Math.min(1,dt*6)}
   player.combo=Math.max(1,player.combo-.05*dt);
   wormUpdate(dt);
   const v=player.vel,spd=v.length();
@@ -1564,7 +1586,7 @@ function frame(now){
   const kTurn=curvAt(player.pos.z)*SP0*SP0/G;
   sr=lerp(sr,clamp(-player.tilt*.12+kTurn*.35,-.2,.2),1-Math.exp(-5*dt));camera.rotateZ(sr);
   const mOn=MUS.on&&MUS.playing;
-  camera.fov=lerp(camera.fov,72+clamp(spd/(SP0*modes[mi][1]*1.6),0,1)*6+(mOn?(MUS.low||0)*3+MUS.bar*2.5:0)+(!player.on&&!player.inV&&floatAt(player.pos.z)<1?5:0),1-Math.exp(-1.6*dt));camera.updateProjectionMatrix();
+  camera.fov=lerp(camera.fov,72+clamp(spd/(SP0*(MUS.on?MUS.m:modes[mi][1])*1.6),0,1)*6+(mOn?(MUS.low||0)*3+MUS.bar*2.5:0)+(!player.on&&!player.inV&&floatAt(player.pos.z)<1?5:0),1-Math.exp(-1.6*dt));camera.updateProjectionMatrix();
 
   const vd=v.clone();if(vd.lengthSq()<1)vd.set(0,0,1);vd.normalize();
   W(player.pos.x,player.pos.y,player.pos.z,craft.position);
