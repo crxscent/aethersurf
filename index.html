@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.43</title>
+<title>AetherSurf v0.9.44</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.43 · ТРАССА ПО ТАКТАМ</div>
+  <div class="ver">v0.9.44 · ТРАССА ПО ТАКТАМ</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -1043,7 +1043,7 @@ function buildNext(){
     const arc=t=>l.cy+l.vy*t-gdir*.5*Gg*t*t;
     nxX=s.x1+dxs*gap;surf=surfAt(s);
     const tm=p.ringApex&&l.vy>0?Math.min(Tt*.8,l.vy/Gg):Tt/2;
-    if(p.fg){const ph=rnd()*TAU;for(let i=1;i<=5;i++){const t=Tt*i/6;makeRing({x:s.x1+dxs*SP0*t+4.2*Math.sin(ph+i*1.9),y:arc(t)+3.4*Math.cos(ph*.7+i*1.3),z:s.z1+SP0*t,r:2.8,c:PAL[(s.c+i)%5]})}}
+    if(p.fg){s.arcP={vy:l.vy,g:Gg};const ph=rnd()*TAU;for(let i=1;i<=5;i++){const t=Tt*i/6;makeRing({x:s.x1+dxs*SP0*t+4.2*Math.sin(ph+i*1.9),y:arc(t)+3.4*Math.cos(ph*.7+i*1.3),z:s.z1+SP0*t,r:2.8,c:PAL[(s.c+i)%5]})}}
     else makeRing({x:s.x1+dxs*SP0*tm,y:arc(tm),z:s.z1+SP0*tm,r:p.portal?6.5:(p.rr||3.4),c:PAL[s.c],portal:!!p.portal});
   }
   if(p.slot){if(!(p.slot.words&&p.slot.words.length))beatRings(s,p.slot);wordOrbs(s,p.slot,gap,l);lyricsFor(s,gap,l)}
@@ -1176,9 +1176,17 @@ let player={pos:V(),vel:V(0,0,SP0),on:false,tilt:0,pitch:0,lat:0,gravDir:1,air:0
 let cpSeg=null,started=false;
 const stats={fails:0,rings:0,landings:0,loops:0,portals:0,words:0};window.stats=stats;
 let gyroTilt=0,gyroPitch=0,lastBeta=45,lastGamma=0,rollOff=0,pitchOff=0,hasOrientation=false;
-function ori(e){if(e.beta==null||e.gamma==null)return null;let a=(typeof screen!=='undefined'&&screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(window.orientation||0);if(Math.abs(a)===90){let s=a>0?1:-1;return{roll:e.beta*s,pitch:e.gamma*s}}return{roll:e.gamma,pitch:(e.beta||45)-45}}
+// наклоны телефона — по направлению «вверх» в осях экрана, а не по углам Эйлера: у тех при почти вертикальном телефоне
+// в горизонтальной ориентации углы скачком переворачиваются на 180° — корабль резко кидало вбок, а тангаж гас.
+// крен — поворот вокруг нормали экрана (как руль), тангаж — наклон экрана на себя/от себя; друг на друга не влияют
+let oriRollLast=0;
+function ori(e){if(e.beta==null||e.gamma==null)return null;const D=Math.PI/180,a=((typeof screen!=='undefined'&&screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(window.orientation||0))*D,
+  b=e.beta*D,g=e.gamma*D,ux=-Math.sin(g)*Math.cos(b),uy=Math.sin(b),uz=Math.cos(g)*Math.cos(b),sx=ux*Math.cos(a)-uy*Math.sin(a),sy=ux*Math.sin(a)+uy*Math.cos(a);
+  if(Math.hypot(sx,sy)>.2)oriRollLast=-Math.atan2(sx,sy)/D; // телефон лежит почти плашмя — крен не определён, держим прошлый
+  return{roll:oriRollLast,pitch:Math.asin(clamp(uz,-1,1))/D}}
+const wrap180=v=>v-360*Math.round(v/360);
 function mapTilt(v){let d=1,s=Math.sign(v),a=Math.max(0,Math.abs(v)-d);return s*clamp(a/9,0,1)}
-function onOrientation(e){let r=ori(e);if(!r)return;lastBeta=e.beta;lastGamma=e.gamma;if(!hasOrientation){rollOff=r.roll;pitchOff=r.pitch;hasOrientation=true}gyroTilt=mapTilt(r.roll-rollOff);gyroPitch=mapTilt(r.pitch-pitchOff)}
+function onOrientation(e){let r=ori(e);if(!r)return;lastBeta=e.beta;lastGamma=e.gamma;if(!hasOrientation){rollOff=r.roll;pitchOff=r.pitch;hasOrientation=true}gyroTilt=mapTilt(wrap180(r.roll-rollOff));gyroPitch=mapTilt(r.pitch-pitchOff)}
 function calibrate(){let r=ori({beta:lastBeta,gamma:lastGamma});if(r){rollOff=r.roll;pitchOff=r.pitch}gyroTilt=gyroPitch=0}
 let keys={},hL=false,hR=false;addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR')resetCP()});addEventListener('keyup',e=>keys[e.code]=false);
 function bind(id,set){let el=document.getElementById(id);if(!el)return;const d=e=>{e.preventDefault();set(true)},u=e=>{e.preventDefault();set(false)};el.addEventListener('touchstart',d,{passive:false});el.addEventListener('touchend',u,{passive:false});el.addEventListener('touchcancel',u,{passive:false});el.addEventListener('mousedown',d);el.addEventListener('mouseup',u);el.addEventListener('mouseleave',u)}
@@ -1376,7 +1384,8 @@ window.startGame=startGame;
 function segAt(z){for(const s of S)if(z>=s.z0&&z<=s.z1)return s;return null}
 // гравитация перевёрнута на потолочных островах и в пропастях между ними внутри отрезка антиграва
 function gravInvAt(z){let prev=null;for(const s of S){if(z>=s.z0&&z<=s.z1)return s.inv;if(s.z0>z)return!!(prev&&prev.inv&&s.inv);prev=s}return false}
-function floatAt(z){for(const s of S)if(s.fg&&z>s.z1&&z<s.z1+s.gap)return s.fg;return 1}
+function floatSeg(z){for(const s of S)if(s.fg&&z>s.z1&&z<s.z1+s.gap)return s;return null}
+function floatAt(z){const s=floatSeg(z);return s?s.fg:1}
 function streamAt(z){for(const s of S)if(s.stream&&z>s.z1&&z<s.z1+s.gap)return s.stream;return null}
 function flash(a){if(player.demo)return;const f=document.getElementById('flash');f.style.opacity=a;setTimeout(()=>f.style.opacity=0,90)}
 let toastT=0;function toast(t,ms=1500){if(player.demo)return;const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),ms)}
@@ -1491,7 +1500,7 @@ function physics(dt){
     // гравитация масштабируется вместе со скоростью: траектория прыжка одинакова в любом режиме
     const fgz=floatAt(player.pos.z);player.air+=dt;player.fallT+=dt*(fgz<1?.3:1);player.noLand-=dt;
     // в штиле тангаж сильнее: «на себя» — подъём, «от себя» — нырок; ограничена только добавка от тангажа, сам полёт — как рассчитан
-    let pa=player.pitch*PITCH_A*m*m;if(fgz<1){pa*=1.25;const vy=player.vel.y*player.gravDir;if((pa>0&&vy>8*m)||(pa<0&&vy<-13*m))pa=0}
+    let pa=player.pitch*PITCH_A*m*m;if(fgz<1){pa*=1.25;const fs=floatSeg(player.pos.z),T=fs?(player.pos.z-fs.z1)/SP0:0,vp=fs&&fs.arcP?(fs.arcP.vy-fs.arcP.g*T)*m:0,dv=player.vel.y*player.gravDir-vp;if((pa>0&&dv>9*m)||(pa<0&&dv<-12*m))pa=0}
     player.vel.y+=(-g*fgz+pa)*player.gravDir*dt;
     player.vel.x+=steer*AIR_A*m*m*dt;
     // мягкое доведение к центру ближайшего острова: мелкие промахи прощаются
