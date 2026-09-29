@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.47</title>
+<title>AetherSurf v0.9.48</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.47 · СТИМПАНК</div>
+  <div class="ver">v0.9.48 · СТИМПАНК</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -101,6 +101,38 @@ if(bestScore>0)document.getElementById('bestStart').textContent='Рекорд: '
 const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(HORIZON,.0026);
 const camera=new THREE.PerspectiveCamera(74,innerWidth/innerHeight,.1,3000);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);document.getElementById('c').appendChild(renderer.domElement);
+// адаптивное разрешение: если видеокарта не успевает за экраном, картинка становится чуть мягче; появился запас — чёткость возвращается.
+// цель — частота экрана, но не выше 75 кадров: на 120–144 Гц не жертвуем чёткостью ради лишних кадров
+const DYN={max:Math.min(devicePixelRatio,1.5),pr:0,min:0,win:[],cw:[],low:[],vs:1e3/60,hold:0,ok:0,ceil:9,ceilT:0,fails:0};
+DYN.pr=DYN.max;DYN.min=Math.max(.6,DYN.max*.6);
+function setPR(p){DYN.pr=p;renderer.setPixelRatio(p);renderer.setSize(innerWidth,innerHeight)}
+// ms — интервал между кадрами, cpu — время логики игры в кадре (без отрисовки)
+function dynRes(ms,cpu){
+  if(ms>100||document.hidden){DYN.win.length=DYN.cw.length=0;return} // вкладка была скрыта — не считаем
+  DYN.win.push(ms);DYN.cw.push(cpu);if(DYN.win.length<40)return;
+  const a=DYN.win.sort((x,y)=>x-y),lo=a[3],med=a[20],cm=DYN.cw.sort((x,y)=>x-y)[20];DYN.win.length=DYN.cw.length=0;
+  DYN.low.push(lo);if(DYN.low.length>8)DYN.low.shift();
+  DYN.vs=Math.min(Math.max(Math.min(...DYN.low),4),1e3/60); // период обновления экрана — самый короткий устойчивый интервал (если все кадры медленные — считаем 60 Гц)
+  const T=Math.max(DYN.vs,1e3/75),t=performance.now();
+  if(t<DYN.hold)return;
+  // кадры не успевают: если процессор свободен — упираемся в видеокарту, снижаем разрешение на 15%.
+  // после снижения выше этой ступени не поднимаемся 30 с, потом 60, 120 — чтобы не качаться туда-сюда
+  if(med>T*1.2){if(DYN.pr>DYN.min&&cm<T*.6){DYN.ceil=DYN.pr;DYN.fails++;DYN.ceilT=t+15e3*Math.pow(2,Math.min(DYN.fails,3));DYN.ok=0;setPR(Math.max(DYN.min,DYN.pr*.85));DYN.hold=t+600}}
+  else if(med<T*1.05&&DYN.pr<DYN.max&&(DYN.pr*1.1<DYN.ceil*.98||t>DYN.ceilT)){if(++DYN.ok>=3){DYN.ok=0;setPR(Math.min(DYN.max,DYN.pr*1.1));DYN.hold=t+600}}
+  else DYN.ok=0;
+}
+// ?fps в адресе — счётчик кадров, время кадра, масштаб рендера и число вызовов отрисовки
+const FPSEL=/[?&]fps/.test(location.search)?(()=>{const d=document.createElement('div');d.style.cssText='position:fixed;left:8px;top:8px;z-index:99;font:12px/1.35 monospace;color:#fff;background:rgba(0,0,0,.55);padding:4px 7px;border-radius:6px;pointer-events:none;white-space:pre';document.body.appendChild(d);return d})():null;
+const FPS={t:0,a:[]};
+function fpsTick(ms){if(!FPSEL||ms>250)return;FPS.a.push(ms);FPS.t+=ms;if(FPS.t<500)return;const a=FPS.a.sort((x,y)=>x-y);
+  FPSEL.textContent=Math.round(a.length*1e3/FPS.t)+' fps  '+a[a.length>>1].toFixed(1)+' / '+a[a.length-1].toFixed(0)+' мс\n×'+DYN.pr.toFixed(2)+'  '+renderer.domElement.width+'×'+renderer.domElement.height+'  dc '+renderer.info.render.calls+(PREP.length?'  prep '+PREP.length:'');FPS.a=[];FPS.t=0}
+// фоновая подготовка: тяжёлые генераторы текстур идут кусками по ~2 мс за кадр, без рывков
+const PREP=[];
+function drainG(g){let r;while(!(r=g.next()).done);return r.value}
+function prepAdd(key,it,done){if(!PREP.some(j=>j.key===key))PREP.push({key,it,done})}
+function prepNow(key){const j=PREP.find(j=>j.key===key);if(!j)return;PREP.splice(PREP.indexOf(j),1);j.done(drainG(j.it))}
+function prepStep(ms){const t0=performance.now();while(PREP.length&&performance.now()-t0<ms){const j=PREP[0],r=j.it.next();if(r.done){PREP.shift();j.done(r.value)}}}
+function* upl(g,list){const v=yield* g;for(const t of list(v)){renderer.initTexture(t);yield}return v} // сразу заливаем в видеопамять, по одной текстуре за шаг
 const HEMI=new THREE.HemisphereLight(0xd8ccff,0x2a4060,.7);scene.add(HEMI);
 let keyLight=new THREE.DirectionalLight(0xffe9f6,.8);keyLight.position.set(40,120,260);scene.add(keyLight);
 let fillLight=new THREE.DirectionalLight(0x9fdcff,.45);fillLight.position.set(-60,80,-100);scene.add(fillLight);
@@ -287,7 +319,9 @@ function bakeRec(rec){
     if(!o.geometry)return;
     let g=o.geometry;if(g===CRYS_GEO)g=o.geometry=g.clone();
     if(o.position.lengthSq()||o.rotation.x||o.rotation.y||o.rotation.z||o.scale.x!==1||o.scale.y!==1||o.scale.z!==1){o.updateMatrix();g.applyMatrix4(o.matrix);o.position.set(0,0,0);o.rotation.set(0,0,0);o.scale.set(1,1,1)}
-    const p=g.attributes.position;for(let i=0;i<p.count;i++){W(p.getX(i),p.getY(i),p.getZ(i),TV);p.setXYZ(i,TV.x,TV.y,TV.z)}p.needsUpdate=true;
+    const p=g.attributes.position;
+    if(p.isInterleavedBufferAttribute||p.itemSize!==3){for(let i=0;i<p.count;i++){W(p.getX(i),p.getY(i),p.getZ(i),TV);p.setXYZ(i,TV.x,TV.y,TV.z)}}
+    else{const A=p.array;for(let i=0;i<A.length;i+=3){W(A[i],A[i+1],A[i+2],TV);A[i]=TV.x;A[i+1]=TV.y;A[i+2]=TV.z}}p.needsUpdate=true;
     if(o.material&&o.material.isMeshStandardMaterial)g.computeVertexNormals();g.computeBoundingSphere();
   });
 }
@@ -301,24 +335,29 @@ function addRail(pts,r,color,opa){const m=new THREE.MeshBasicMaterial(opa?{color
 // и высоте мелодии (меняется вдоль трассы), яркость — пульс слов, строк и долей
 const BANDMAT=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});BANDMAT.userData.shared=true;
 function sideBands(N,P,w){
-  if(!MUS.on||!MUS.an)return;const pos=[],col=[],c=new THREE.Color(),M=5;
-  for(const side of[0,1])for(let i=0;i<N;i++)for(let j=0;j<M;j++){
-    const a=i/N,b=(i+1)/N,e0=j/M,e1=(j+1)/M,U=e=>side?1-w*e:w*e,q=[[a,e0],[b,e0],[b,e1],[a,e0],[b,e1],[a,e1]];
-    for(const[t,e]of q){const p=P(t,U(e));pos.push(...p);railColor(p[2]/MZ(),c);const f=Math.pow(1-e,1.6);col.push(c.r*f,c.g*f,c.b*f)}}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));tgt.add(new THREE.Mesh(g,BANDMAT));
+  if(!MUS.on||!MUS.an)return;const c=new THREE.Color(),M=5,pos=new Float32Array(2*N*M*18),col=new Float32Array(2*N*M*18);let k=0;
+  for(const side of[0,1]){const U=e=>side?1-w*e:w*e,G=[],C=[];
+    for(let i=0;i<=N;i++)for(let j=0;j<=M;j++){const e=j/M,p=P(i/N,U(e)),f=Math.pow(1-e,1.6);G.push(p);railColor(p[2]/MZ(),c);C.push([c.r*f,c.g*f,c.b*f])}
+    const put=(i,j)=>{const n=i*(M+1)+j,p=G[n],q=C[n];pos[k]=p[0];pos[k+1]=p[1];pos[k+2]=p[2];col[k]=q[0];col[k+1]=q[1];col[k+2]=q[2];k+=3};
+    for(let i=0;i<N;i++)for(let j=0;j<M;j++){put(i,j);put(i+1,j);put(i+1,j+1);put(i,j);put(i+1,j+1);put(i,j+1)}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));tgt.add(new THREE.Mesh(g,BANDMAT));
 }
 function railAt(s,q,t1,r,color,opa){const pts=[],sg=s.inv?-1:1;for(let k=0;k<=40;k++){const t=k/40*t1,z=lerp(s.z0,s.z1,t),x=centerX(s,t)+q*halfW(s,t)[0];pts.push(V(x,surfY(s,x,z)+sg*.16,z))}addRail(pts,r,color,opa)}
-function meshOf(pos,uv,mat){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));if(uv)g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();const m=new THREE.Mesh(g,mat);tgt.add(m);return m}
+const BA=(a,n)=>a instanceof Float32Array?new THREE.BufferAttribute(a,n):new THREE.Float32BufferAttribute(a,n);
+// нормали считаем только если остров не будет запекаться: bakeRec всё равно пересчитает их после изгиба
+function meshOf(pos,uv,mat){const g=new THREE.BufferGeometry();g.setAttribute('position',BA(pos,3));if(uv)g.setAttribute('uv',BA(uv,2));if(!(curRec&&tgt===curRec.g&&mat.isMeshStandardMaterial))g.computeVertexNormals();const m=new THREE.Mesh(g,mat);tgt.add(m);return m}
+// сетка поверхности: каждая вершина считается один раз (раньше — по четыре раза на клетку), массивы сразу типизированные
+function gridArr(N,A,f,uvf){const G=[];for(let i=0;i<=N;i++)for(let j=0;j<=A;j++)G.push(f(i/N,j/A));
+  const pos=new Float32Array(N*A*18),uv=uvf?new Float32Array(N*A*12):null;let k=0,q=0;
+  const put=(p,a,u)=>{pos[k++]=p[0];pos[k++]=p[1];pos[k++]=p[2];if(uv){const w=uvf(a,u,p);uv[q++]=w[0];uv[q++]=w[1]}};
+  for(let i=0;i<N;i++)for(let j=0;j<A;j++){const a=i/N,b=(i+1)/N,u=j/A,v=(j+1)/A,r0=i*(A+1),r1=r0+A+1,p00=G[r0+j],p10=G[r1+j],p11=G[r1+j+1],p01=G[r0+j+1];
+    put(p00,a,u);put(p10,b,u);put(p11,b,v);put(p00,a,u);put(p11,b,v);put(p01,a,v)}
+  return[pos,uv]}
 function buildIsland(s){
   const L=s.z1-s.z0,N=Math.ceil(L*2),cloud=s.pf==='cloud',W=cloud?24:s.fx2?48:(s.pf!=='U'&&s.pf!=='V')?40:20,sg=s.inv?-1:1;
   const P=(t,u)=>{const z=lerp(s.z0,s.z1,t),h=halfW(s,t)[0],x=centerX(s,t)+(u*2-1)*h;return[x,surfY(s,x,z),z]};
   const UV=(u,p)=>cloud?[u*2,p[2]/24]:[u,p[2]/12];
-  let pos=[],uv=[];
-  for(let i=0;i<N;i++)for(let j=0;j<W;j++){
-    const a=i/N,b=(i+1)/N,u=j/W,v=(j+1)/W,p00=P(a,u),p10=P(b,u),p11=P(b,v),p01=P(a,v);
-    pos.push(...p00,...p10,...p11,...p00,...p11,...p01);
-    uv.push(...UV(u,p00),...UV(u,p10),...UV(v,p11),...UV(u,p00),...UV(v,p11),...UV(v,p01));
-  }
+  const[pos,uv]=gridArr(N,W,P,(a,u,p)=>UV(u,p));
   meshOf(pos,uv,cloud?CLOUDMAT:s.ghost?GHOSTMAT:TMATS[s.c]);
   if(!cloud&&!s.ghost)sideBands(Math.ceil(L*1.2),(t,u)=>{const p=P(t,u);p[1]+=sg*.03;return p},.24);
   // линия вылета — видно, где кончается рампа
@@ -356,7 +395,7 @@ function buildIsland(s){
 function buildTube(s){
   const L=s.z1-s.z0,Rv=s.R,serp=s.pf==='serp';
   const P=(t,al,r)=>{const z=lerp(s.z0,s.z1,t),ax=centerX(s,t),rt=Rt(s,t),ay=along(s,t)[0]+rt,rr2=r?r-Rv+rt:0;return[ax+rr2*Math.sin(al),ay-rr2*Math.cos(al),z]};
-  const grid=(N,A,f,mat,uvf)=>{const pos=[],uv=[];for(let i=0;i<N;i++)for(let j=0;j<A;j++){const a=i/N,b=(i+1)/N,u=j/A,v=(j+1)/A,p00=f(a,u),p10=f(b,u),p11=f(b,v),p01=f(a,v);pos.push(...p00,...p10,...p11,...p00,...p11,...p01);if(uvf)uv.push(...uvf(a,u,p00),...uvf(b,u,p10),...uvf(b,v,p11),...uvf(a,u,p00),...uvf(b,v,p11),...uvf(a,v,p01))}return meshOf(pos,uvf?uv:null,mat)};
+  const grid=(N,A,f,mat,uvf)=>{const[pos,uv]=gridArr(N,A,f,uvf);return meshOf(pos,uv,mat)};
   if(serp){
     // серпантин / волна-вираж / бочка: сплошная дорога-лента, поворачивается вокруг оси; сзади каменная подложка
     const E=t=>serpEd(s,t),N=Math.ceil(L*1.2),A=s.roll==='curl'?36:s.roll==='cocoon'?44:14,ang=(t,u)=>{const e=E(t);return roadAng(s,t)+lerp(e[0],e[1],u)};
@@ -1067,7 +1106,7 @@ function buildNext(){
   gen.z=s.z1+gap;gen.x=nxX;gen.y=surf-(TUBE(probe)?0:sample(probe,nxX,gen.z,true).y); // у стены центр сечения выше основания
   gen.age++;if(!p.slot&&(Math.abs(gen.y-gen.phase)<5||gen.age>14))nextPhase();
 }
-function disposeRec(rec){if(rec.orbs)rec.orbs.forEach(o=>{const i=ORBS.indexOf(o);if(i>=0)ORBS.splice(i,1)});rec.g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&!o.material.userData.shared){if(o.material.userData.ownMap)o.material.map.dispose();o.material.dispose()}});scene.remove(rec.g);rec.rings.forEach(r=>{const i=RINGS.indexOf(r);if(i>=0)RINGS.splice(i,1)})}
+function disposeRec(rec){if(rec.orbs)rec.orbs.forEach(o=>{const i=ORBS.indexOf(o);if(i>=0)ORBS.splice(i,1)});rec.g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&!o.material.userData.shared&&o.material.userData.ownMap)o.material.map.dispose()}); /* материалы не dispose(): их шейдер остаётся скомпилированным, сами объекты уберёт сборщик мусора */scene.remove(rec.g);rec.rings.forEach(r=>{const i=RINGS.indexOf(r);if(i>=0)RINGS.splice(i,1)})}
 // строим трассу впереди и убираем пройденное
 function streamWorld(){
   if(gen.z<player.pos.z+AHEAD)buildNext();
@@ -1287,7 +1326,8 @@ function vnoise(X,Y,px,py){const ix=Math.floor(X),iy=Math.floor(Y),fx=X-ix,fy=Y-
 const vfbm=(X,Y,px,py)=>vnoise(X,Y,px,py)*.6+vnoise(X*2,Y*2,px*2,py*2)*.28+vnoise(X*4,Y*4,px*4,py*4)*.12;
 // текстуры мира: рисунок (тон, рельеф, светящиеся линии) считается один раз, потом раскрашивается в 5 цветов палитры;
 // светится не всё полотно, а только узоры — остальное лепит свет, поэтому поверхность перестаёт быть «нарисованной»
-function mkWorldTex(style,pal){
+function mkWorldTex(style,pal){return drainG(mkWorldTexG(style,pal))}
+function* mkWorldTexG(style,pal){
   const W=256,H=384,N=W*H,tone=new Float32Array(N),acc=new Float32Array(N),glow=new Float32Array(N),hg=new Float32Array(N),pt=new Float32Array(N),P=[.2,.5,.44];
   let K=2,B0=[.1,.1,.2],B1=[.3,.3,.4];
   let tr=null;
@@ -1300,7 +1340,7 @@ function mkWorldTex(style,pal){
       for(let k=0;k<n;k++){let x=bx+k*5,y=y0;pad(x,y);let jog=Math.floor(R()*len);
         for(let q=0;q<len;q++){y++;if(q===jog){const dir=R()<.5?-1:1;for(let d=0;d<10;d++){x+=dir;y++;line(x,y)}}line(x,y)}pad(x,y)}}
     for(let k=0;k<26;k++){const x=16+Math.floor(R()*(W-32)),y=Math.floor(R()*H);pad(x,y)}}
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  for(let y=0;y<H;y++){if(y&1)yield;for(let x=0;x<W;x++){
     const u=x/(W-1),v=y/H,e=Math.min(u,1-u),gr=whash(x,y),i=y*W+x;let t=.5,a=0,g=0,h=.5,pat=0;
     if(style==='aether'){ // перламутровый мрамор с шёлковыми прожилками вдоль трассы, тонкие светящиеся швы
       const n=vfbm(u*5,v*6,5,6),st=vfbm(u*26,v*3,26,3),sd=Math.abs(v*3-Math.round(v*3))*12,seam=sd<.03?1:0,lane=[.25,.5,.75].some(q=>Math.abs(u-q)<.004)?1:0;
@@ -1329,18 +1369,19 @@ function mkWorldTex(style,pal){
     }
     if(e<.035){const k=Math.pow(1-e/.035,1.5);a=Math.max(a,k*.9);g=Math.max(g,e<.01?1:k*k*.55);h=Math.max(h,.35+.4*k)}
     tone[i]=clamp(t,0,1);acc[i]=a;glow[i]=g;hg[i]=h;pt[i]=pat;
-  }
+  }}
   const an=Math.min(renderer.capabilities.getMaxAnisotropy(),8),mk=c=>{const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=an;return t},cvs=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
   const np=new Uint8ClampedArray(N*4);
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const hx0=hg[y*W+Math.max(0,x-1)],hx1=hg[y*W+Math.min(W-1,x+1)],hy0=hg[((y-1+H)%H)*W+x],hy1=hg[((y+1)%H)*W+x];
-    const nx=(hx0-hx1)*K,ny=(hy0-hy1)*K,l=Math.hypot(nx,ny,1),o=(y*W+x)*4;np[o]=(nx/l*.5+.5)*255;np[o+1]=(ny/l*.5+.5)*255;np[o+2]=(1/l*.5+.5)*255;np[o+3]=255}
+  yield;for(let y=0;y<H;y++){if((y&31)===31)yield;for(let x=0;x<W;x++){const hx0=hg[y*W+Math.max(0,x-1)],hx1=hg[y*W+Math.min(W-1,x+1)],hy0=hg[((y-1+H)%H)*W+x],hy1=hg[((y+1)%H)*W+x];
+    const nx=(hx0-hx1)*K,ny=(hy0-hy1)*K,l=Math.hypot(nx,ny,1),o=(y*W+x)*4;np[o]=(nx/l*.5+.5)*255;np[o+1]=(ny/l*.5+.5)*255;np[o+2]=(1/l*.5+.5)*255;np[o+3]=255}}
   const nc=cvs();nc.getContext('2d').putImageData(new ImageData(np,W,H),0,0);const nrm=mk(nc);
-  return pal.map(c=>{const A=new THREE.Color(c),ap=new Uint8ClampedArray(N*4),ep=new Uint8ClampedArray(N*4);
+  const out=[];for(const c of pal){yield;const A=new THREE.Color(c),ap=new Uint8ClampedArray(N*4),ep=new Uint8ClampedArray(N*4);
     for(let i=0;i<N;i++){const t=tone[i],a=acc[i],g=glow[i],o=i*4,w=g>.85?(g-.85)*3:0;
       const p=pt[i];ap[o]=clamp(lerp(lerp(lerp(B0[0],B1[0],t),A.r,a),P[0],p),0,1)*255;ap[o+1]=clamp(lerp(lerp(lerp(B0[1],B1[1],t),A.g,a),P[1],p),0,1)*255;ap[o+2]=clamp(lerp(lerp(lerp(B0[2],B1[2],t),A.b,a),P[2],p),0,1)*255;ap[o+3]=255;
-      ep[o]=clamp(A.r*g+w,0,1)*255;ep[o+1]=clamp(A.g*g+w,0,1)*255;ep[o+2]=clamp(A.b*g+w,0,1)*255;ep[o+3]=255}
+      ep[o]=clamp(A.r*g+w,0,1)*255;ep[o+1]=clamp(A.g*g+w,0,1)*255;ep[o+2]=clamp(A.b*g+w,0,1)*255;ep[o+3]=255;if((i&8191)===8191)yield}
     const ac=cvs(),ec=cvs();ac.getContext('2d').putImageData(new ImageData(ap,W,H),0,0);ec.getContext('2d').putImageData(new ImageData(ep,W,H),0,0);
-    return{map:mk(ac),emap:mk(ec),nrm}});
+    out.push({map:mk(ac),emap:mk(ec),nrm})}
+  return out;
 }
 const TEXC={};
 // общий «эфирный» слой для материалов: светящийся ободок по краям форм, каустика под водой, блёстки песка и снега
@@ -1380,14 +1421,18 @@ function setWorld(n,instant){
   worldName=n;const w=WORLDS[n];wcopy(WT,w);if(instant)wcopy(WS,w);
   PAL.splice(0,5,...w.pal);PALH.splice(0,5,...PAL.map(c=>{const h={};new THREE.Color(c).getHSL(h);return h.h}));
   CRYS.forEach((m,i)=>m.color.setHex(PAL[i]));VFIN.forEach((m,i)=>{m.color.setHex(PAL[i]);m.emissive.setHex(PAL[i])});
-  const T=TEXC[n]||(TEXC[n]=mkWorldTex(w.tex,w.pal));
+  if(!TEXC[n])prepNow('w:'+n);const T=TEXC[n]||(TEXC[n]=mkWorldTex(w.tex,w.pal));
   TMATS.forEach((m,i)=>{m.map=T[i].map;m.emissiveMap=T[i].emap;m.normalMap=T[i].nrm;m.needsUpdate=true});
   VMATS.forEach((m,i)=>{m.map=T[i].map;m.emissiveMap=T[i].emap;m.normalMap=T[i].nrm;m.needsUpdate=true});
   // в «путешествии» заранее готовим текстуры следующего мира — смена в кротовой норе без рывка
-  if(worldPick==='journey')setTimeout(()=>{const nx=WORLD_ORDER[(WORLD_ORDER.indexOf(n)+1)%WORLD_ORDER.length];if(!TEXC[nx])TEXC[nx]=mkWorldTex(WORLDS[nx].tex,WORLDS[nx].pal)},4000);
+  if(worldPick==='journey')prepWorld(WORLD_ORDER[(WORLD_ORDER.indexOf(n)+1)%WORLD_ORDER.length]);
   if(!instant)toast(w.name,1800);
   if(decorReady)decorStyle(n);
 }
+const WORLD_ATEX={deep:['wood','sail'],steam:['fabric','brass','woodC']};
+function prepWorld(n){const w=WORLDS[n];
+  if(!TEXC[n])prepAdd('w:'+n,upl(mkWorldTexG(w.tex,w.pal),v=>v.flatMap(o=>[o.map,o.emap]).concat(v[0].nrm)),v=>{TEXC[n]=v});
+  (WORLD_ATEX[n]||[]).forEach(k=>{if(!ATEX[k])prepAdd('a:'+k,upl(atexG(k),v=>[v.map,v.normalMap,v.roughnessMap]),v=>{ATEX[k]=v})})}
 function nextWorld(){setWorld(WORLD_ORDER[(WORLD_ORDER.indexOf(worldName)+1)%WORLD_ORDER.length])}
 function pickWorld(n){worldPick=n;try{localStorage.setItem('aethersurf_world',n)}catch(e){}worldNextZ=player.pos.z+1800;setWorld(n==='journey'?(worldName||'aether'):n);drawWorldChips()}
 function drawWorldChips(){const el=document.getElementById('worldRow');if(!el)return;el.innerHTML='';[...WORLD_ORDER,'journey'].forEach(k=>{const b=document.createElement('button');b.className='chip'+(worldPick===k?' on':'');b.textContent=k==='journey'?'ПУТЕШЕСТВИЕ':WORLDS[k].name;b.onclick=e=>{e.stopPropagation();pickWorld(k)};el.appendChild(b)})}
@@ -1451,11 +1496,12 @@ ROCKDECOR.forEach((q,i)=>{const r=q.d.o.children[0].geometry.parameters.radius,o
 });
 // ================= детали миров: корабли на дне, медузы, астероиды, дирижабли, часовые механизмы =================
 // процедурная текстура: цвет + рельеф (карта нормалей) + шероховатость; fn(u,v,x,y,o) заполняет o.r,o.g,o.b,o.h,o.ro,o.a
-function mkPTex(W,H,fn,K,clampEdge){const N=W*H,cp=new Uint8ClampedArray(N*4),hp=new Float32Array(N),rp=new Uint8ClampedArray(N*4),o={};
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;o.a=1;o.ro=.8;fn(x/W,y/H,x,y,o);const k=i*4;cp[k]=clamp(o.r,0,1)*255;cp[k+1]=clamp(o.g,0,1)*255;cp[k+2]=clamp(o.b,0,1)*255;cp[k+3]=clamp(o.a,0,1)*255;hp[i]=o.h;const q=clamp(o.ro,0,1)*255;rp[k]=rp[k+1]=rp[k+2]=q;rp[k+3]=255}
+function mkPTex(W,H,fn,K,clampEdge){return drainG(mkPTexG(W,H,fn,K,clampEdge))}
+function* mkPTexG(W,H,fn,K,clampEdge){const N=W*H,cp=new Uint8ClampedArray(N*4),hp=new Float32Array(N),rp=new Uint8ClampedArray(N*4),o={};
+  for(let y=0;y<H;y++){if((y&3)===3)yield;for(let x=0;x<W;x++){const i=y*W+x;o.a=1;o.ro=.8;fn(x/W,y/H,x,y,o);const k=i*4;cp[k]=clamp(o.r,0,1)*255;cp[k+1]=clamp(o.g,0,1)*255;cp[k+2]=clamp(o.b,0,1)*255;cp[k+3]=clamp(o.a,0,1)*255;hp[i]=o.h;const q=clamp(o.ro,0,1)*255;rp[k]=rp[k+1]=rp[k+2]=q;rp[k+3]=255}}
   const np=new Uint8ClampedArray(N*4);
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const X0=(x-1+W)%W,X1=(x+1)%W,Y0=(y-1+H)%H,Y1=(y+1)%H,nx=(hp[y*W+X0]-hp[y*W+X1])*K,ny=(hp[Y1*W+x]-hp[Y0*W+x])*K,l=Math.hypot(nx,ny,1),k=(y*W+x)*4;np[k]=(nx/l*.5+.5)*255;np[k+1]=(ny/l*.5+.5)*255;np[k+2]=(1/l*.5+.5)*255;np[k+3]=255}
-  const an=Math.min(renderer.capabilities.getMaxAnisotropy(),8),mk=a=>{const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').putImageData(new ImageData(a,W,H),0,0);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=clampEdge?THREE.ClampToEdgeWrapping:THREE.RepeatWrapping;t.anisotropy=an;return t};
+  yield;for(let y=0;y<H;y++){if((y&31)===31)yield;for(let x=0;x<W;x++){const X0=(x-1+W)%W,X1=(x+1)%W,Y0=(y-1+H)%H,Y1=(y+1)%H,nx=(hp[y*W+X0]-hp[y*W+X1])*K,ny=(hp[Y1*W+x]-hp[Y0*W+x])*K,l=Math.hypot(nx,ny,1),k=(y*W+x)*4;np[k]=(nx/l*.5+.5)*255;np[k+1]=(ny/l*.5+.5)*255;np[k+2]=(1/l*.5+.5)*255;np[k+3]=255}}
+  yield;const an=Math.min(renderer.capabilities.getMaxAnisotropy(),8),mk=a=>{const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').putImageData(new ImageData(a,W,H),0,0);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=clampEdge?THREE.ClampToEdgeWrapping:THREE.RepeatWrapping;t.anisotropy=an;return t};
   return{map:mk(cp),normalMap:mk(np),roughnessMap:mk(rp)}}
 const mixc=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 // доски обшивки: волокно, годовые кольца, стыки, гвозди; у киля — водоросли и ракушки (clean — свежий лакированный борт гондолы)
@@ -1489,8 +1535,9 @@ const sailFn=(u,v,x,y,o)=>{const n=vfbm(u*6,v*6,6,6),n2=vnoise(u*18,v*18,18,18),
   const wv=(((x>>1)+(y>>1))&1)?.03:-.03;let c=mixc([.5,.5,.42],[.72,.7,.6],n);c=mixc(c,[.2,.32,.24],clamp(.7-v,0,1)*.7);
   o.r=c[0]+wv;o.g=c[1]+wv;o.b=c[2]+wv;o.h=.5+wv+n*.2;o.ro=.95;o.a=hole?0:1};
 const ATEX={};
-function atex(k){if(ATEX[k])return ATEX[k];const f={wood:[woodFn(false),3.2,0],woodC:[woodFn(true),2.6,0],fabric:[fabricFn,2.4,0],brass:[brassFn,2.2,0],sail:[sailFn,1.2,1]}[k];
-  return ATEX[k]=mkPTex(k==='sail'?256:512,k==='sail'?256:512,f[0],f[1],!!f[2])}
+function* atexG(k){const f={wood:[woodFn(false),3.2,0],woodC:[woodFn(true),2.6,0],fabric:[fabricFn,2.4,0],brass:[brassFn,2.2,0],sail:[sailFn,1.2,1]}[k];
+  return yield* mkPTexG(k==='sail'?256:512,k==='sail'?256:512,f[0],f[1],!!f[2])}
+function atex(k){if(ATEX[k])return ATEX[k];prepNow('a:'+k);return ATEX[k]||(ATEX[k]=drainG(atexG(k)))}
 const TEXMAT=(k,o)=>{const m=new THREE.MeshStandardMaterial(Object.assign({roughness:1,metalness:0},o));m.userData.tex=k;patchMat(m,.55);return m};
 function texReady(m){if(m.map||!m.userData.tex)return;const t=atex(m.userData.tex);m.map=t.map;m.normalMap=t.normalMap;m.roughnessMap=t.roughnessMap;m.needsUpdate=true}
 const WRECKMAT=TEXMAT('wood',{side:THREE.DoubleSide}),SAILMAT=TEXMAT('sail',{side:THREE.DoubleSide,alphaTest:.5,color:0xd8d4c0}),
@@ -1930,9 +1977,12 @@ for(let i=0;i<5;i++){const g=new THREE.Group(),m=new THREE.Mesh(CRYS_GEO,CRYS[i]
 const camPrev=V(),vigEl=document.getElementById('vig');let camPrevOk=false,vigA=0,vigShown=0,camLift=0;
 let look=V(),lookS=V(),camSnapL=true,camT=V(0,34,-8),camUpT=V(0,1,0),slx=0,sly=0,sr=0,craftPitch=0,craftRoll=0,camYOff=2.6,camSnap=true,last=performance.now(),clock=0;
 const hud={speed:document.getElementById('speedHud'),score:document.getElementById('scoreHud'),combo:document.getElementById('comboHud'),dist:document.getElementById('distHud')};
+const setTxt=(e,v)=>{v=String(v);if(e._v!==v){e._v=v;e.textContent=v}};
+let bestSaved=-9;function saveBest(){bestSaved=clock;try{localStorage.setItem('aethersurf_best',bestScore)}catch(e){}}
+addEventListener('pagehide',saveBest);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveBest()});
 function frame(now){
   requestAnimationFrame(frame);
-  let dt=clamp((now-last)/1000,0,.05);last=now;
+  const js0=performance.now(),rawMs=now-last;let dt=clamp(rawMs/1000,0,.05);last=now;
   // в режиме трека часы игры — это время песни: полёт не расходится с музыкой
   if(MUS.on){if(MUS.playing){const st=songTime();let g=MUS.gt+dt;g=Math.abs(st-g)>.2?st:g+(st-g)*.15;g=Math.max(g,MUS.gt);dt=Math.min(g-MUS.gt,.25);MUS.gt=g}else{if(MUS.hold>0){MUS.hold-=dt;if(MUS.hold<=0)musicPlay(MUS.gt)}dt=0}}
   clock+=dt;
@@ -2032,14 +2082,20 @@ function frame(now){
   craftLight.color.setHex(player.gravDir<0?0xe0b8ff:0xbfe8ff);
 
   audio.update(clamp(spd/(SP0*1.8),0,1));
-  hud.speed.textContent=Math.round((player.inV?v.z:Math.hypot(v.x,v.z))*2.8);
-  hud.score.textContent=Math.floor(player.score);
-  hud.combo.textContent='КОМБО ×'+player.combo.toFixed(1);
-  hud.dist.textContent=(player.maxZ/1000).toFixed(2)+' КМ';
-  if(!player.demo&&player.score>bestScore){bestScore=player.score;try{localStorage.setItem('aethersurf_best',bestScore)}catch(e){}}
+  setTxt(hud.speed,Math.round((player.inV?v.z:Math.hypot(v.x,v.z))*2.8));
+  setTxt(hud.score,Math.floor(player.score));
+  setTxt(hud.combo,'КОМБО ×'+player.combo.toFixed(1));
+  setTxt(hud.dist,(player.maxZ/1000).toFixed(2)+' КМ');
+  if(!player.demo&&player.score>bestScore){bestScore=player.score;if(Math.abs(clock-bestSaved)>2)saveBest()} // рекорд пишем на диск не чаще раза в 2 с
+  if(PREP.length)prepStep(2);
+  const js1=performance.now();
   renderer.render(scene,camera);
+  dynRes(rawMs,js1-js0);fpsTick(rawMs);
+  if(WARM){WARM.forEach(o=>{scene.remove(o);o.geometry.dispose()});WARM=null}
 }
 resetWorld(20260925);drawWorldChips();
+// прогреваем шейдеры трассы и воронки в первом кадре меню: иначе каждый компилируется посреди игры, когда такой элемент впервые попадает в кадр
+let WARM=[WORMMAT,TMATS[0],VMATS[0],ROCK,VFIN[0],CLOUDMAT,GHOSTMAT,LIPMAT,CRYS[0],BANDMAT,MOSS[0]].filter(Boolean).map(m=>{const w=new THREE.Mesh(new THREE.PlaneGeometry(1,1),m);w.scale.setScalar(1e-4);w.frustumCulled=false;scene.add(w);return w});
 requestAnimationFrame(frame);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 </script>
