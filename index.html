@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.45</title>
+<title>AetherSurf v0.9.46</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.45 · КИБЕРПАНК</div>
+  <div class="ver">v0.9.46 · СТИМПАНК</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -392,7 +392,8 @@ const STREAMFX={
   snow:{tex:'flake',size:.55,col:0xeef4ff,op:.95,sp:.7,vol:.05,vcol:0x9fb4d8,flut:.45,add:0},
   star:{tex:'spark',size:.8,col:null,op:1,sp:1.6,vol:.08,vcol:null,add:1},
   water:{tex:'bubble',size:.5,col:0xcffcff,op:.85,sp:.85,vol:.13,vcol:0x2f9fb0,rise:.9,add:1},
-  data:{tex:'spark',size:.55,col:null,op:1,sp:2.4,vol:.12,vcol:0xff2bd6,add:1}};
+  data:{tex:'spark',size:.55,col:null,op:1,sp:2.4,vol:.12,vcol:0xff2bd6,add:1},
+  steam:{tex:'',size:1.4,col:0xefe3d2,op:.5,sp:.55,vol:.08,vcol:0xb89a78,flut:.35,add:0}};
 function buildStream(rec){
   const st=rec.s.stream,N=170,pos=new Float32Array(N*3),data=[],vols=[];
   for(let i=0;i<N;i++)data.push({u:rnd(),sp:rr(.18,.35),r:Math.sqrt(rnd())*2.6,a:rnd()*TAU,ph:rnd()});
@@ -447,10 +448,16 @@ const WORMMAT=new THREE.ShaderMaterial({uniforms:WORMU,transparent:true,depthWri
       float foam=pow(n21(d*3.+vec2(lr*12.-t*3.,0.)),3.)*2.2;
       float arms=pow(sw,2.5)*smoothstep(1.,.25,r),core=smoothstep(.5,0.,r);
       col=mix(uA*.5,uB,sw)*(.35+arms)+vec3(.85,1.,1.)*foam*arms+uB*rim*.8;col=mix(col,vec3(0.,.03,.05),core);al=clamp(.45+arms*.5+foam*.3+rim+core,0.,1.)*edge;
-    }else{ // киберпанк: голографическая воронка — неоновые кольца, сегменты, сканлайны, цифровые сбои
+    }else if(uFx<5.5){ // киберпанк: голографическая воронка — неоновые кольца, сегменты, сканлайны, цифровые сбои
       float a=atan(vU.y,vU.x)+t*.8,rg=pow(.5+.5*sin(lr*18.-t*6.),6.)*smoothstep(1.,.3,r),sg=step(.5,fract(a/6.2832*12.+t*.4));
       float sc=.65+.35*sin(vU.y*140.+t*24.),gl=step(.9,h21(vec2(floor(vU.y*36.),floor(t*14.))))*smoothstep(1.,.4,r),core=smoothstep(.45,0.,r);
       col=(mix(uA,uB,sg)*rg*2.+vec3(1.)*gl*.7)*sc+uB*rim*1.3;col=mix(col,vec3(.02,0.,.04),core);al=clamp(rg*.85+rim+core+gl*.5,0.,1.)*edge;
+    }else{ // стимпанк: часовой механизм — латунные зубчатые кольца крутятся навстречу друг другу, в глубине тёплый пар
+      float a=atan(vU.y,vU.x),ring=0.;
+      for(int k=0;k<3;k++){float fk=float(k),rk=.46+fk*.17,dir=mod(fk,2.)*2.-1.,ang=a+t*.35*dir*(1.+fk*.4),th=step(.5,fract(ang/6.2832*(18.+fk*8.)));
+        ring+=smoothstep(.012,0.,abs(r-rk)-.03)+smoothstep(.01,0.,abs(r-rk-.055)-.02)*th;}
+      float core=smoothstep(.42,0.,r),stm=n21(vec2(cos(a),sin(a))*3.+vec2(lr*5.-t*1.2,0.))*smoothstep(.46,.08,r);ring=clamp(ring,0.,1.);
+      col=mix(uA,uB,ring)*ring*1.5+vec3(1.,.82,.58)*stm*.7+uB*rim;col=mix(col,vec3(.14,.07,.02),core*.75);al=clamp(ring+rim+core*.9+stm*.5,0.,1.)*edge;
     }
     gl_FragColor=vec4(col,al);}`});
 function buildWormPortal(s){const q=streamPt(s.stream,.1),g=new THREE.Mesh(new THREE.CircleGeometry(8.5,72),WORMMAT);g.position.set(q.x,q.y,q.z);tgt.add(g);
@@ -1167,7 +1174,8 @@ function Wd(x,y,z,o){const zn=JUMPS.length?zoneOf(z):0;let sx=0,sz=0,st=0,c=0;fo
 function redecor(z){if(!decorReady)return;for(const d of DECOR)if(d.tp&&d.tp.z>=z)Wd(d.tp.x,d.tp.y,d.tp.z,d.o.position)}
 function placeD(d,z){d.place(d,z);d.tp=(d.tp||V()).copy(d.o.position);Wd(d.tp.x,d.tp.y,d.tp.z,d.o.position)}
 function placeDecorAll(cz){DECOR.forEach(d=>placeD(d,cz-200+rnd()*d.span))}
-function updateDecor(dt){const cz=camT.z;for(const d of DECOR){if(d.tp.z<cz-220)placeD(d,d.tp.z+d.span);d.o.visible=d.tp.z>cz-120&&d.tp.z<cz+d.far;if(!d.o.visible)continue;if(d.bob&&!decorNoBob){d.o.position.y=d.y+Math.sin(clock*d.sp+d.ph)*1.6;d.o.rotation.y+=dt*.02}if(d.spin)d.o.rotation.z+=dt*d.spin}}
+function updateDecor(dt){const cz=camT.z;for(const d of DECOR){if(d.tp.z<cz-220)placeD(d,d.tp.z+d.span);d.o.visible=d.tp.z>cz-120&&d.tp.z<cz+d.far&&(!d.only||d.only===decorWorld);if(!d.o.visible)continue;
+  if(d.jelly){const p=.5+.5*Math.sin(clock*1.7+d.ph);d.o.scale.set(d.sz*(1+.14*p),d.sz*(1-.12*p),1);d.o.position.y=d.y+Math.sin(clock*.35+d.ph)*4;continue}if(d.bob&&!decorNoBob){d.o.position.y=d.y+Math.sin(clock*d.sp+d.ph)*1.6;d.o.rotation.y+=dt*.02}if(d.spin)d.o.rotation.z+=dt*d.spin}}
 
 // светящиеся пылинки вокруг камеры
 const MOTE_N=260,moteP=new Float32Array(MOTE_N*3),moteV=[];
@@ -1219,35 +1227,35 @@ const WORLDS={
     fog:c3(0x6b4d94),fogD:.0026,fA:[.17,.13,.34],fB:[.86,.74,.98],fC:[.25,.6,.7],cloud:1,dune:0,caus:0,void:0,spark:0,
     rock:c3(0x2c2552),rockE:c3(0x0e0a24),moss0:c3(0x9ff5e0),moss1:c3(0xf2c4ff),rim:[.30,.26,.55],hemiS:c3(0xd8ccff),hemiG:c3(0x2a4060),hemi:.55,key:c3(0xffe9f6),fill:c3(0x9fdcff),
     cloudLo:c3(0xd9c8ff),cloudHi:c3(0xbfd8ff),cloudO:1,mote:[1,1,1],moteSize:.35,wind:[0,.5,0],wob:.3,
-    neon:1.1,self:.2,refl:.55,det:.12,flow:.35,flowC:[.65,.8,1],city:0,rain:0,emi:.42,rough:.55,metal:.15,env:.45,nrm:.45,tcaus:0,causC:[.5,1,.9],tspark:0},
+    neon:1.1,self:.2,refl:.55,det:.12,flow:.35,flowC:[.65,.8,1],city:0,rain:0,snow:0,emi:.42,rough:.55,metal:.15,env:.45,nrm:.45,tcaus:0,causC:[.5,1,.9],tspark:0},
   desert:{name:'ПУСТЫНЯ',tex:'sand',fx:'sand',pfx:1,wA:0x9a5a2c,wB:0xffd79c,dark:'radial-gradient(ellipse at 50% 50%,#1c1207 0%,#080502 75%)',dot:'#ffe4b8',pal:[0xffc27a,0xff8f6b,0xffe2b8,0xe86f7e,0xf6a95c],
     zen:[.16,.28,.56],mid:[.60,.50,.62],hor:[1,.80,.60],low:[.90,.60,.42],neb1:[.9,.5,.4],neb2:[.9,.7,.5],neb:.22,aurA:[1,.8,.5],aurB:[1,.6,.6],aur:0,
     sun:[1,.88,.65],sunDir:[-.35,.16,1],sunSize:70,sunGlow:.45,rays:0,planet:0,planetDir:[-.5,.22,1],planetCol:[.9,.7,.5],galaxy:0,stars:0,
     fog:c3(0xe9b98f),fogD:.0021,fA:[.55,.30,.18],fB:[1,.80,.55],fC:[1,.9,.7],cloud:0,dune:1,caus:0,void:0,spark:.9,
     rock:c3(0xb97a55),rockE:c3(0x2a130a),moss0:c3(0xf6d9a8),moss1:c3(0xe8a77a),rim:[.45,.22,.14],hemiS:c3(0xffe0c0),hemiG:c3(0x6a3a2a),hemi:.5,key:c3(0xffd8a8),fill:c3(0xff9f8a),
     cloudLo:c3(0xf3c79e),cloudHi:c3(0xffe2c8),cloudO:.55,mote:[1,.82,.55],moteSize:.2,wind:[6,-.2,-1.5],wob:.6,
-    neon:.55,self:.06,refl:.22,det:.35,flow:0,flowC:[1,.8,.5],city:0,rain:0,emi:.12,rough:.88,metal:0,env:.35,nrm:1.1,tcaus:0,causC:[1,.9,.7],tspark:.8},
+    neon:.55,self:.06,refl:.22,det:.35,flow:0,flowC:[1,.8,.5],city:0,rain:0,snow:0,emi:.12,rough:.88,metal:0,env:.35,nrm:1.1,tcaus:0,causC:[1,.9,.7],tspark:.8},
   winter:{name:'ЗИМА',tex:'snow',fx:'snow',pfx:2,wA:0x5d74a8,wB:0xeaf2ff,dark:'radial-gradient(ellipse at 50% 50%,#0b101c 0%,#020307 75%)',dot:'#eaf3ff',pal:[0x5f7896,0x6c6890,0x7c7288,0x5a8480,0x8c8674],
     zen:[.008,.012,.03],mid:[.035,.05,.10],hor:[.13,.16,.24],low:[.07,.09,.15],neb1:[.25,.3,.5],neb2:[.2,.35,.45],neb:.18,aurA:[.3,.8,.6],aurB:[.4,.5,.8],aur:.22,
     sun:[.72,.8,1],sunDir:[.3,.28,1],sunSize:420,sunGlow:.1,rays:0,planet:0,planetDir:[-.5,.22,1],planetCol:[.8,.8,1],galaxy:0,stars:.75,
     fog:c3(0x1a212f),fogD:.0033,fA:[.07,.09,.14],fB:[.36,.40,.50],fC:[.25,.35,.55],cloud:.25,dune:.75,caus:0,void:0,spark:.45,
     rock:c3(0x39424f),rockE:c3(0x05070b),moss0:c3(0x9ea8bc),moss1:c3(0x8c97ad),rim:[.07,.10,.17],hemiS:c3(0x7584a4),hemiG:c3(0x0e1219),hemi:.26,key:c3(0x8e9fc0),fill:c3(0x3e4c70),
     cloudLo:c3(0x3a4354),cloudHi:c3(0x566074),cloudO:.55,mote:[.8,.85,.95],moteSize:.26,wind:[.3,-1.1,-.2],wob:.7,
-    neon:.45,self:.03,refl:.5,det:.25,flow:.06,flowC:[.6,.8,1],city:0,rain:0,emi:.03,rough:.5,metal:.05,env:.5,nrm:.95,tcaus:0,causC:[.8,.9,1],tspark:.45},
+    neon:.45,self:.03,refl:.5,det:.1,flow:.06,flowC:[.6,.8,1],city:0,rain:0,snow:1,emi:.03,rough:.5,metal:.05,env:.5,nrm:.95,tcaus:0,causC:[.8,.9,1],tspark:.45},
   space:{name:'КОСМОС',tex:'hex',fx:'star',pfx:3,wA:0xff5a2e,wB:0xffd98a,dark:'radial-gradient(ellipse at 50% 50%,#07050f 0%,#000000 75%)',dot:'#ffffff',pal:[0x6ff7ff,0xb46bff,0xff5fd2,0x5dffb0,0xffd36b],
     zen:[0,0,.015],mid:[.01,.01,.04],hor:[.06,.04,.14],low:[.02,.01,.05],neb1:[.7,.25,.9],neb2:[.1,.6,.9],neb:1.7,aurA:[.3,.6,1],aurB:[.8,.4,1],aur:0,
     sun:[1,.95,.9],sunDir:[.2,.25,1],sunSize:900,sunGlow:.08,rays:0,planet:1,planetDir:[-.5,.22,1],planetCol:[.55,.45,.85],galaxy:1,stars:1.6,
     fog:c3(0x0b0820),fogD:.0012,fA:[.02,.01,.06],fB:[.35,.2,.6],fC:[.2,.5,.9],cloud:0,dune:0,caus:0,void:1,spark:.4,
     rock:c3(0x3b3a4a),rockE:c3(0x08060f),moss0:c3(0x6a6a80),moss1:c3(0x4a4a60),rim:[.25,.45,1],hemiS:c3(0x9aa8ff),hemiG:c3(0x10081c),hemi:.35,key:c3(0xf4f0ff),fill:c3(0x7a5cff),
     cloudLo:c3(0x6040a0),cloudHi:c3(0x4060c0),cloudO:.35,mote:[.8,.9,1],moteSize:.22,wind:[0,0,-4],wob:.1,
-    neon:1.4,self:.25,refl:.6,det:.05,flow:.5,flowC:[.5,.7,1],city:0,rain:0,emi:.75,rough:.22,metal:.65,env:1,nrm:.6,tcaus:0,causC:[.5,.8,1],tspark:.35},
+    neon:1.4,self:.25,refl:.6,det:.05,flow:.5,flowC:[.5,.7,1],city:0,rain:0,snow:0,emi:.75,rough:.22,metal:.65,env:1,nrm:.6,tcaus:0,causC:[.5,.8,1],tspark:.35},
   deep:{name:'ГЛУБИНА',tex:'pearl',fx:'water',pfx:4,wA:0x0b5663,wB:0xa8f5ee,dark:'radial-gradient(ellipse at 50% 50%,#05171c 0%,#010608 75%)',dot:'#c9fbff',pal:[0x5fa8b0,0x6a8fb4,0x8aa4bc,0x6faea2,0x9fb0a8],
     zen:[.10,.32,.40],mid:[.03,.17,.24],hor:[.02,.11,.18],low:[.01,.04,.08],neb1:[.1,.35,.45],neb2:[.15,.45,.5],neb:.2,aurA:[.3,1,.9],aurB:[.5,.8,1],aur:0,
     sun:[.55,.85,.85],sunDir:[0,1,.25],sunSize:10,sunGlow:.3,rays:.5,planet:0,planetDir:[-.5,.22,1],planetCol:[.5,.8,.8],galaxy:0,stars:0,
     fog:c3(0x0a3542),fogD:.0048,fA:[.01,.06,.09],fB:[.08,.22,.26],fC:[.25,.5,.5],cloud:0,dune:.35,caus:.6,void:0,spark:0,
     rock:c3(0x1d3c48),rockE:c3(0x03090c),moss0:c3(0x5f9a9a),moss1:c3(0x70889e),rim:[.07,.2,.22],hemiS:c3(0x7fc2cc),hemiG:c3(0x031014),hemi:.34,key:c3(0x9fd2d2),fill:c3(0x3f78a0),
     cloudLo:c3(0x1f5a66),cloudHi:c3(0x3a7a86),cloudO:.35,mote:[.7,.9,.95],moteSize:.26,wind:[0,1.5,0],wob:.7,
-    neon:.6,self:.08,refl:.45,det:.2,flow:.12,flowC:[.4,1,.9],city:0,rain:0,emi:.16,rough:.38,metal:.12,env:.6,nrm:.45,tcaus:.3,causC:[.35,.7,.7],tspark:0},
+    neon:.6,self:.08,refl:.45,det:.2,flow:.12,flowC:[.4,1,.9],city:0,rain:0,snow:0,emi:.16,rough:.38,metal:.12,env:.6,nrm:.45,tcaus:.3,causC:[.35,.7,.7],tspark:0},
   // киберпанк: ночной мегаполис в неоновом смоге, внизу — город огней, вокруг — небоскрёбы, идёт дождь
   cyber:{name:'КИБЕРПАНК',tex:'circuit',fx:'data',pfx:5,wA:0xff2bd6,wB:0x19f0ff,dark:'radial-gradient(ellipse at 50% 50%,#16041f 0%,#000000 75%)',dot:'#ff5ae6',
     pal:[0xff2bd6,0x19f0ff,0x8a3dff,0x2d6bff,0xff3f7f],
@@ -1256,10 +1264,20 @@ const WORLDS={
     fog:c3(0x1c0629),fogD:.0036,fA:[.01,.005,.03],fB:[.06,.02,.10],fC:[.1,.9,1],cloud:0,dune:0,caus:0,void:.25,spark:0,
     rock:c3(0x1a1428),rockE:c3(0x080310),moss0:c3(0xff2bd6),moss1:c3(0x19f0ff),rim:[.55,.1,.6],hemiS:c3(0x8a4dff),hemiG:c3(0x1a0030),hemi:.38,key:c3(0xff5ad8),fill:c3(0x19c8ff),
     cloudLo:c3(0x3a0f52),cloudHi:c3(0x22105a),cloudO:.35,mote:[1,.4,.9],moteSize:.2,wind:[.4,-3,-.5],wob:.1,
-    neon:1.35,self:.04,refl:.85,det:.02,flow:.6,flowC:[1,.25,.85],city:1,rain:1,
-    emi:.3,rough:.24,metal:.72,env:.9,nrm:.7,tcaus:0,causC:[.8,.3,1],tspark:0}
+    neon:1.35,self:.04,refl:.85,det:.02,flow:.6,flowC:[1,.25,.85],city:1,rain:1,snow:0,
+    emi:.3,rough:.24,metal:.72,env:.9,nrm:.7,tcaus:0,causC:[.8,.3,1],tspark:0},
+  // стимпанк: закат сквозь дым, море пара внизу, дирижабли и огромные шестерни; полотно — латунь на заклёпках
+  steam:{name:'СТИМПАНК',tex:'brass',fx:'steam',pfx:6,wA:0x8a5a2a,wB:0xffd08a,dark:'radial-gradient(ellipse at 50% 50%,#20130a 0%,#070402 75%)',dot:'#ffcf85',
+    pal:[0xd9a441,0xc8703a,0x4fb3a0,0xe8c07a,0x9c5a3c],
+    zen:[.09,.08,.11],mid:[.40,.26,.17],hor:[.98,.64,.32],low:[.52,.33,.2],neb1:[.9,.5,.25],neb2:[.55,.38,.28],neb:.55,aurA:[1,.7,.4],aurB:[1,.5,.3],aur:0,
+    sun:[1,.76,.46],sunDir:[-.3,.1,1],sunSize:110,sunGlow:.55,rays:.18,planet:0,planetDir:[-.5,.22,1],planetCol:[.9,.7,.5],galaxy:0,stars:0,
+    fog:c3(0x6a4630),fogD:.0027,fA:[.26,.17,.11],fB:[.92,.72,.52],fC:[1,.82,.55],cloud:1,dune:0,caus:0,void:0,spark:0,
+    rock:c3(0x5a3f2c),rockE:c3(0x140a04),moss0:c3(0xd9a441),moss1:c3(0x4fb3a0),rim:[.4,.24,.1],hemiS:c3(0xffd9a8),hemiG:c3(0x3a2414),hemi:.46,key:c3(0xffc47a),fill:c3(0x7ab8c0),
+    cloudLo:c3(0xc89a70),cloudHi:c3(0xe8c8a0),cloudO:.6,mote:[1,.62,.3],moteSize:.2,wind:[1.4,.9,-.4],wob:.35,
+    neon:.7,self:.05,refl:.5,det:.07,flow:.12,flowC:[1,.72,.38],city:0,rain:0,snow:0,
+    emi:.1,rough:.32,metal:.78,env:.8,nrm:1.1,tcaus:0,causC:[1,.8,.5],tspark:.15}
 };
-const WORLD_ORDER=['aether','desert','winter','space','deep','cyber'];
+const WORLD_ORDER=['aether','desert','winter','space','deep','cyber','steam'];
 const WS={},WT={};
 function wcopy(d,s){for(const k in s){const v=s[k];if(Array.isArray(v))d[k]=v.slice();else if(typeof v==='number')d[k]=v}}
 // процедурные текстуры полотна: цвет + рельеф (карта нормалей); рисунок бесшовно повторяется вдоль трассы
@@ -1270,7 +1288,7 @@ const vfbm=(X,Y,px,py)=>vnoise(X,Y,px,py)*.6+vnoise(X*2,Y*2,px*2,py*2)*.28+vnois
 // текстуры мира: рисунок (тон, рельеф, светящиеся линии) считается один раз, потом раскрашивается в 5 цветов палитры;
 // светится не всё полотно, а только узоры — остальное лепит свет, поэтому поверхность перестаёт быть «нарисованной»
 function mkWorldTex(style,pal){
-  const W=256,H=384,N=W*H,tone=new Float32Array(N),acc=new Float32Array(N),glow=new Float32Array(N),hg=new Float32Array(N);
+  const W=256,H=384,N=W*H,tone=new Float32Array(N),acc=new Float32Array(N),glow=new Float32Array(N),hg=new Float32Array(N),pt=new Float32Array(N),P=[.2,.5,.44];
   let K=2,B0=[.1,.1,.2],B1=[.3,.3,.4];
   let tr=null;
   if(style==='circuit'){ // шины схемы: тонкие дорожки идут вдоль трассы пучками, изредка уходят в сторону под 45°; на концах — площадки
@@ -1283,7 +1301,7 @@ function mkWorldTex(style,pal){
         for(let q=0;q<len;q++){y++;if(q===jog){const dir=R()<.5?-1:1;for(let d=0;d<10;d++){x+=dir;y++;line(x,y)}}line(x,y)}pad(x,y)}}
     for(let k=0;k<26;k++){const x=16+Math.floor(R()*(W-32)),y=Math.floor(R()*H);pad(x,y)}}
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-    const u=x/(W-1),v=y/H,e=Math.min(u,1-u),gr=whash(x,y),i=y*W+x;let t=.5,a=0,g=0,h=.5;
+    const u=x/(W-1),v=y/H,e=Math.min(u,1-u),gr=whash(x,y),i=y*W+x;let t=.5,a=0,g=0,h=.5,pat=0;
     if(style==='aether'){ // перламутровый мрамор с шёлковыми прожилками вдоль трассы, тонкие светящиеся швы
       const n=vfbm(u*5,v*6,5,6),st=vfbm(u*26,v*3,26,3),sd=Math.abs(v*3-Math.round(v*3))*12,seam=sd<.03?1:0,lane=[.25,.5,.75].some(q=>Math.abs(u-q)<.004)?1:0;
       t=.3+.5*n+.25*st;h=.45*n+.25*st-seam*.35-lane*.15;g=seam*.35+lane*.22+(gr>.9985?.9:0);B0=[.06,.05,.16];B1=[.24,.2,.46];K=1.8;
@@ -1299,12 +1317,18 @@ function mkWorldTex(style,pal){
     }else if(style==='pearl'){ // чешуя перламутра
       const n=vfbm(u*6,v*12,6,12),cy=v*16,row=Math.floor(cy),cx=u*6+(row%2)*.5,fx=cx-Math.floor(cx)-.5,fy=cy-row,dd=Math.sqrt(fx*fx+fy*fy*.8);
       h=Math.max(0,1-dd*1.7);t=.25+.55*h+.2*n;a=.1+.1*Math.sin(TAU*(v*2+u*.5));g=h<.1?.18:0;B0=[.12,.24,.27];B1=[.5,.62,.64];K=2.6;
+    }else if(style==='brass'){ // латунные листы внахлёст на заклёпках, патина в швах, кое-где выгравированы шестерни
+      const row=Math.floor(y/48),px=(x+(row%2)*40)%80,py=y%48,pid=whash(Math.floor((x+(row%2)*40)/80),row),seam=(px<2||py<2)?1:0,
+        rx=5+10*Math.round((px-5)/10),rd=Math.hypot(px-rx,Math.min(Math.abs(py-6),Math.abs(py-42))),riv=Math.max(0,1-rd/2.4);
+      let eng=0;if(pid>.72){const d=Math.hypot(px-40,py-24),an=Math.atan2(py-24,px-40);if(Math.abs(d-13)<1.1)eng=-.35;else if(d>13&&d<16.5&&Math.sin(an*12)>0)eng=-.25;else if(d<4)eng=.25}
+      const fil=Math.abs(Math.sin(u*22+Math.sin(v*40)*2.2))<.05?-.12:0,n=vfbm(u*9,v*14,9,14);
+      t=.3+.4*pid+.2*n+.1*riv;h=.5+riv*.45+eng+fil-seam*.4;a=.3;g=0;pat=clamp((seam?1:0)*.8+(py<5||px<5||py>43||px>75?.35:0)*n+(n>.7?.3:0),0,.8);B0=[.2,.12,.05];B1=[.96,.74,.4];K=2.8;
     }else{ // circuit — углеродные панели, неоновые дорожки, огоньки
       const px=x%32,py=y%32,seam=(px<2||py<2)?1:0,ph=whash(Math.floor(x/32),Math.floor(y/32)),trv=tr[i],led=(px>24&&px<28&&py>4&&py<8&&ph>.6)?1:0;
       t=.3+.45*ph+.25*vnoise(u*40,v*60,40,60);g=Math.max(trv*.6,led*.7);a=trv*.55;h=seam?.08:(trv>.9?.72:.55);B0=[.01,.01,.024];B1=[.06,.055,.1];K=2.2;
     }
     if(e<.035){const k=Math.pow(1-e/.035,1.5);a=Math.max(a,k*.9);g=Math.max(g,e<.01?1:k*k*.55);h=Math.max(h,.35+.4*k)}
-    tone[i]=clamp(t,0,1);acc[i]=a;glow[i]=g;hg[i]=h;
+    tone[i]=clamp(t,0,1);acc[i]=a;glow[i]=g;hg[i]=h;pt[i]=pat;
   }
   const an=Math.min(renderer.capabilities.getMaxAnisotropy(),8),mk=c=>{const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=an;return t},cvs=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
   const np=new Uint8ClampedArray(N*4);
@@ -1313,7 +1337,7 @@ function mkWorldTex(style,pal){
   const nc=cvs();nc.getContext('2d').putImageData(new ImageData(np,W,H),0,0);const nrm=mk(nc);
   return pal.map(c=>{const A=new THREE.Color(c),ap=new Uint8ClampedArray(N*4),ep=new Uint8ClampedArray(N*4);
     for(let i=0;i<N;i++){const t=tone[i],a=acc[i],g=glow[i],o=i*4,w=g>.85?(g-.85)*3:0;
-      ap[o]=clamp(lerp(lerp(B0[0],B1[0],t),A.r,a),0,1)*255;ap[o+1]=clamp(lerp(lerp(B0[1],B1[1],t),A.g,a),0,1)*255;ap[o+2]=clamp(lerp(lerp(B0[2],B1[2],t),A.b,a),0,1)*255;ap[o+3]=255;
+      const p=pt[i];ap[o]=clamp(lerp(lerp(lerp(B0[0],B1[0],t),A.r,a),P[0],p),0,1)*255;ap[o+1]=clamp(lerp(lerp(lerp(B0[1],B1[1],t),A.g,a),P[1],p),0,1)*255;ap[o+2]=clamp(lerp(lerp(lerp(B0[2],B1[2],t),A.b,a),P[2],p),0,1)*255;ap[o+3]=255;
       ep[o]=clamp(A.r*g+w,0,1)*255;ep[o+1]=clamp(A.g*g+w,0,1)*255;ep[o+2]=clamp(A.b*g+w,0,1)*255;ep[o+3]=255}
     const ac=cvs(),ec=cvs();ac.getContext('2d').putImageData(new ImageData(ap,W,H),0,0);ec.getContext('2d').putImageData(new ImageData(ep,W,H),0,0);
     return{map:mk(ac),emap:mk(ec),nrm}});
@@ -1390,9 +1414,113 @@ const TOWERMAT=[0xff2bd6,0x19f0ff,0xffd400,0x8a3dff,0xff4d2e].map((c,k)=>{const 
   x.fillStyle=`rgb(${A.r*255|0},${A.g*255|0},${A.b*255|0})`;x.fillRect(0,0,64,10);x.fillRect(0,26,64,3);x.fillRect(30,0,4,1024);
   const t=new THREE.CanvasTexture(cv);t.anisotropy=4;return new THREE.MeshStandardMaterial({color:0x8a86a0,map:t,emissiveMap:t,emissive:0xffffff,emissiveIntensity:1.1,roughness:.35,metalness:.6})});
 ROCKDECOR.forEach((q,i)=>{const r=q.d.o.children[0].geometry.parameters.radius,H=190+whash(i,7)*170,w=Math.max(5,r*.9),tw=new THREE.Mesh(TOWER_GEO,TOWERMAT[i%5]);tw.scale.set(w,H,w*(.7+whash(i,3)*.6));tw.position.y=r*1.4;tw.visible=false;q.d.o.add(tw);q.tw=tw});
-let decorNoBob=false;
+// ---------- детали миров: затонувшие корабли, медузы, астероиды, небоскрёбы разных форм, голограммы, летающие машины, дирижабли, шестерни, снег ----------
+function mergeGeo(parts){let n=0;const gs=parts.map(([g,m,c])=>{const G=g.index?g.toNonIndexed():g.clone();G.applyMatrix4(m);n+=G.attributes.position.count;return[G,new THREE.Color(c)]});
+  const pos=new Float32Array(n*3),nor=new Float32Array(n*3),col=new Float32Array(n*3),uv=new Float32Array(n*2);let o=0;
+  for(const[G,C]of gs){const k=G.attributes.position.count;pos.set(G.attributes.position.array,o*3);nor.set(G.attributes.normal.array,o*3);if(G.attributes.uv)uv.set(G.attributes.uv.array,o*2);for(let q=0;q<k;q++){col[(o+q)*3]=C.r;col[(o+q)*3+1]=C.g;col[(o+q)*3+2]=C.b}o+=k;G.dispose()}
+  const out=new THREE.BufferGeometry();out.setAttribute('position',new THREE.BufferAttribute(pos,3));out.setAttribute('normal',new THREE.BufferAttribute(nor,3));out.setAttribute('color',new THREE.BufferAttribute(col,3));out.setAttribute('uv',new THREE.BufferAttribute(uv,2));out.computeBoundingSphere();return out}
+const M4=(x,y,z,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)),new THREE.Vector3(sx,sy,sz));
+const VCM=(o)=>{const m=new THREE.MeshStandardMaterial(Object.assign({vertexColors:true},o));patchMat(m,.6);return m};
+// глубина: затонувшие корабли — целый, разломанный и один скелет; лежат на дне с креном
+const WRECKMAT=VCM({roughness:.95,metalness:.05,emissive:0x04120f});
+const WRECK_GEO=[0,1,2].map(v=>{const P=[],wood=0x3b3427,dk=0x241f17,rib=0x4f4a3a,alg=0x2c5a4c,bowl=new THREE.SphereGeometry(1,18,8,0,TAU,Math.PI/2,Math.PI/2);
+  if(v<2){P.push([bowl,M4(0,0,v?-.2:0,0,0,0,.34,.3,v?.72:1),wood]);P.push([new THREE.BoxGeometry(.64,.03,v?1.3:1.85),M4(0,-.02,v?-.2:0,v?.12:0),dk]);
+    P.push([new THREE.BoxGeometry(.5,.18,.35),M4(0,.08,v?-.55:-.6),wood]);
+    [[.35,1,0],[-.3,v?.45:1.05,v?.6:.15]].forEach(([z,hh,tl])=>{P.push([new THREE.CylinderGeometry(.02,.028,hh),M4(0,hh/2,z,tl,0,tl*.6),dk]);P.push([new THREE.BoxGeometry(.5,.02,.02),M4(0,hh*.7,z,0,.3,tl),dk])});
+    if(v===0)P.push([new THREE.CylinderGeometry(.01,.02,.55),M4(0,.12,1.12,-1.15),dk]);P.push([new THREE.BoxGeometry(.5,.26,.3),M4(0,.13,v?-.62:-.8),dk]);
+    P.push([new THREE.SphereGeometry(.12,6,4),M4(.2,-.05,.5,0,0,0,1,.5,1.6),alg]);P.push([new THREE.SphereGeometry(.1,6,4),M4(-.22,-.08,-.3,0,0,0,1.4,.5,1),alg])}
+  if(v>=1){for(let k=0;k<(v===2?9:4);k++){const z=v===2?-.8+k*.2:.55+k*.13;P.push([new THREE.TorusGeometry(.32,.018,4,10,Math.PI),M4(0,0,z,0,0,Math.PI,1,.9,1),rib])}
+    P.push([new THREE.BoxGeometry(.05,.05,v===2?1.8:.8),M4(0,-.28,v===2?0:.8),rib])}
+  return mergeGeo(P)});
+// космос: кувыркающиеся астероиды вместо островов с мхом
+const ASTER_GEO=[0,1,2].map(v=>{const g=new THREE.IcosahedronGeometry(1,1),p=g.attributes.position,key={};for(let k=0;k<p.count;k++){const x=p.getX(k),y=p.getY(k),z=p.getZ(k),kk=x.toFixed(2)+y.toFixed(2)+z.toFixed(2);
+  if(!key[kk])key[kk]=.72+.5*whash(Math.round(x*50)+v*97,Math.round(y*50)+Math.round(z*50)*3);const f=key[kk];p.setXYZ(k,x*f*(v===1?1.5:1),y*f,z*f*(v===2?1.3:1))}g.computeVertexNormals();return g});
+// стимпанк: дирижабли и латунные шестерни
+const STEAMMAT=VCM({roughness:.38,metalness:.72,emissive:0x1a0c04});
+const SHIP_GEO=(()=>{const P=[],cloth=0xa65a3c,brass=0xcf9a44,wood=0x6b4a2b,dk=0x3a2a1a;
+  P.push([new THREE.SphereGeometry(1,20,12),M4(0,.26,0,0,0,0,.27,.23,.62),cloth]);
+  [-.32,0,.32].forEach(z=>P.push([new THREE.TorusGeometry(.265,.012,4,20),M4(0,.26,z,0,0,0,1,.86,1),brass]));
+  P.push([new THREE.BoxGeometry(.14,.08,.36),M4(0,-.03,.02),wood]);P.push([new THREE.BoxGeometry(.15,.02,.37),M4(0,.01,.02),brass]);
+  [[-.06,.12],[.06,.12],[-.06,-.1],[.06,-.1]].forEach(([x,z])=>P.push([new THREE.CylinderGeometry(.006,.006,.16),M4(x,.08,z,0,0,x*1.2),dk]));
+  P.push([new THREE.BoxGeometry(.012,.16,.14),M4(0,.3,-.58),0x7a3a28]);P.push([new THREE.BoxGeometry(.2,.012,.12),M4(0,.26,-.58),0x7a3a28]);
+  P.push([new THREE.CylinderGeometry(.02,.02,.08),M4(0,-.02,-.2,Math.PI/2),brass]);P.push([new THREE.BoxGeometry(.22,.018,.012),M4(0,-.02,-.25),brass]);
+  P.push([new THREE.CylinderGeometry(.015,.02,.12),M4(.05,.05,.12),dk]);return mergeGeo(P)})();
+const GEAR_GEO=(()=>{const s=new THREE.Shape(),N=16;for(let k=0;k<N*4;k++){const a=k/(N*4)*TAU,rr2=(k%4<2)?1:.84;k?s.lineTo(Math.cos(a)*rr2,Math.sin(a)*rr2):s.moveTo(Math.cos(a)*rr2,Math.sin(a)*rr2)}
+  for(let k=0;k<5;k++){const a=k/5*TAU,h=new THREE.Path();h.absarc(Math.cos(a)*.52,Math.sin(a)*.52,.17,0,TAU,true);s.holes.push(h)}const hub=new THREE.Path();hub.absarc(0,0,.12,0,TAU,true);s.holes.push(hub);
+  const g=new THREE.ExtrudeGeometry(s,{depth:.14,bevelEnabled:true,bevelThickness:.03,bevelSize:.02,bevelSegments:1,curveSegments:4});g.translate(0,0,-.07);
+  return mergeGeo([[g,M4(0,0,0),0xd2a24c],[new THREE.CylinderGeometry(.16,.16,.26,12),M4(0,0,0,Math.PI/2),0x8a5a2a]])})();
+// киберпанк: небоскрёбы пяти форм (верх в точке 0, основание уходит вниз), окна разного рисунка
+const TWG=[(()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,-.5,0);return g})(),
+  mergeGeo([[new THREE.BoxGeometry(1,.78,1),M4(0,-.61,0),0xffffff],[new THREE.BoxGeometry(.68,.22,.68),M4(0,-.11,0),0xffffff],[new THREE.CylinderGeometry(.01,.03,.12,6),M4(.1,.06,.1),0xffffff]]),
+  (()=>{const g=new THREE.CylinderGeometry(.55,.62,1,14);g.translate(0,-.5,0);return g})(),
+  mergeGeo([[new THREE.BoxGeometry(.44,1,.8),M4(-.28,-.5,0),0xffffff],[new THREE.BoxGeometry(.44,.86,.8),M4(.28,-.57,0),0xffffff],[new THREE.BoxGeometry(.2,.06,.5),M4(0,-.4,0),0xffffff]]),
+  mergeGeo([[new THREE.CylinderGeometry(.5,.56,1,6),M4(0,-.5,0),0xffffff],[new THREE.ConeGeometry(.5,.22,6),M4(0,.11,0),0xffffff],[new THREE.CylinderGeometry(.008,.008,.14,4),M4(0,.29,0),0xffffff]])];
+const TWMAT=[0xff2bd6,0x19f0ff,0x8a3dff,0x2d6bff,0xff3f7f,0xffb000,0x19f0ff,0xff2bd6].map((c,k)=>{const cv=document.createElement('canvas');cv.width=64;cv.height=1024;const x=cv.getContext('2d'),A=new THREE.Color(c),hex=`rgb(${A.r*255|0},${A.g*255|0},${A.b*255|0})`;
+  x.fillStyle=['#07060d','#0a0812','#05070c','#0b0710'][k%4];x.fillRect(0,0,64,1024);let s=k*977+13;const R=()=>(s=(s*16807)%2147483647)/2147483647;
+  const ww=[4,2,6,3,5,2,8,3][k],wh=[5,3,4,7,3,2,6,4][k],sx=[7,4,9,6,8,3,11,5][k],sy=[9,6,8,11,7,4,10,8][k],dens=[.42,.3,.55,.35,.25,.5,.4,.3][k];
+  for(let yy=36;yy<1024;yy+=sy)for(let xx=2;xx<62;xx+=sx){if(R()<dens){const w=R();x.fillStyle=w<.55?'rgba(255,214,150,.85)':w<.8?hex:'rgba(140,220,255,.8)';x.fillRect(xx,yy,ww,wh)}}
+  x.fillStyle=hex;x.fillRect(0,0,64,8);if(k%2)x.fillRect(0,20,64,2);if(k%3===0)x.fillRect(30,0,3,1024);if(k%4===1)for(let yy=120;yy<1024;yy+=160)x.fillRect(0,yy,64,2);
+  const t=new THREE.CanvasTexture(cv);t.anisotropy=4;return new THREE.MeshStandardMaterial({color:0x8a86a0,map:t,emissiveMap:t,emissive:0xffffff,emissiveIntensity:1.1,roughness:.35,metalness:.6})});
+// голографические вывески: столбцы знаков, слово, полосы — бегут и мерцают
+const HOLO_WORDS=['NEON','ЭФИР','ZERO','夢','ЛОТОС','∞','SYNC','愛','PULSE','夜'];
+const HOLOTEX=[0,1,2,3].map(k=>{const vert=k%2===0,cv=document.createElement('canvas');cv.width=vert?64:256;cv.height=vert?256:96;const x=cv.getContext('2d');x.clearRect(0,0,cv.width,cv.height);
+  const gr=x.createLinearGradient(0,0,0,cv.height);gr.addColorStop(0,'rgba(255,255,255,.22)');gr.addColorStop(1,'rgba(255,255,255,.08)');x.fillStyle=gr;x.fillRect(0,0,cv.width,cv.height);
+  x.shadowColor='#fff';x.shadowBlur=10;x.strokeStyle='rgba(255,255,255,.95)';x.lineWidth=4;x.strokeRect(4,4,cv.width-8,cv.height-8);
+  x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
+  if(vert){x.font='bold 34px sans-serif';for(let q=0;q<7;q++){const c=String.fromCharCode(0x30A0+((k*7+q*13)%90));x.fillText(c,32,20+q*34)}}
+  else{x.font='bold 64px sans-serif';x.fillText(HOLO_WORDS[k*2+1],128,48);x.shadowBlur=0;x.fillStyle='rgba(255,255,255,.5)';for(let q=0;q<14;q++)x.fillRect(12+q*17,82,10,4)}
+  for(let yy=0;yy<cv.height;yy+=4){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(0,yy,cv.width,1)}
+  const t=new THREE.CanvasTexture(cv);t.wrapT=THREE.RepeatWrapping;return t});
+const HOLOMAT=[0xff2bd6,0x19f0ff,0x8a3dff,0xffb000,0x2dff9e].map((c,k)=>{const m=new THREE.MeshBasicMaterial({map:HOLOTEX[k%4],color:c,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});m.userData.ph=k*1.7;m.userData.k=k%4;return m});
+const HOLO_GEO=new THREE.PlaneGeometry(1,1);
+ROCKDECOR.forEach((q,i)=>{const r=q.d.o.children[0].geometry.parameters.radius,o=q.d.o;
+  q.tw.geometry=TWG[i%5];q.tw.material=TWMAT[(i*3)%8];
+  if(i%5<3&&whash(i,11)<.55){const vert=HOLOMAT[i%5].userData.k%2===0,bb=new THREE.Mesh(HOLO_GEO,HOLOMAT[i%5]),w=q.tw.scale.x;bb.scale.set(vert?w*.55:w*2.1,vert?w*2.2:w*.8,1);bb.position.set((w/2+.6)*(i%2?1:-1),q.tw.position.y-20-whash(i,5)*60,0);bb.rotation.y=Math.PI/2;bb.visible=false;o.add(bb);q.bb=bb}
+  const wr=new THREE.Mesh(WRECK_GEO[i%3],WRECKMAT),ws=r*5;wr.scale.setScalar(ws);wr.rotation.set((whash(i,2)-.5)*.3,whash(i,4)*TAU,(whash(i,6)-.5)*.6);wr.visible=false;o.add(wr);q.wr=wr;q.wrH=ws*.19;
+  const as=new THREE.Mesh(ASTER_GEO[i%3],ROCK),asz=r*(.9+whash(i,8)*.9);as.scale.setScalar(asz);as.visible=false;o.add(as);q.as=as;q.spin=(whash(i,9)-.5)*.6;
+  const sh=new THREE.Mesh(SHIP_GEO,STEAMMAT);sh.scale.setScalar(r*5.5);sh.visible=false;o.add(sh);q.ship=sh;q.ph=whash(i,10)*TAU;
+  const gr=new THREE.Mesh(GEAR_GEO,STEAMMAT);gr.scale.set(r*1.9,r*1.9,r*1.9);gr.rotation.y=whash(i,12)*TAU;gr.visible=false;o.add(gr);q.gear=gr});
+// медузы в толще воды (только в глубине)
+const JELLYTEX=(()=>{const cv=document.createElement('canvas');cv.width=cv.height=128;const x=cv.getContext('2d');const g=x.createRadialGradient(64,46,4,64,46,44);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(.5,'rgba(255,255,255,.45)');g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.beginPath();x.ellipse(64,50,44,34,0,Math.PI,0);x.fill();x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=2.4;for(let k=0;k<6;k++){x.beginPath();const bx=34+k*12;x.moveTo(bx,52);for(let yy=52;yy<124;yy+=4)x.lineTo(bx+Math.sin(yy*.12+k)*5,yy);x.stroke()}
+  return new THREE.CanvasTexture(cv)})();
+for(let k=0;k<26;k++){const c=[0x9ffcff,0xff9fe8,0xb9a8ff,0x9fffd0][k%4],sp=new THREE.Sprite(new THREE.SpriteMaterial({map:JELLYTEX,color:c,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})),sz=4+rnd()*9;sp.scale.set(sz,sz,1);
+  decor(sp,700,(d,z)=>{d.y=lerp(SEA+10,70,rnd());d.o.position.set(courseX(z)+sgn()*(14+rnd()*110),d.y,z)},{only:'deep',jelly:true,sz,ph:rnd()*TAU,far:420})}
+let decorNoBob=false,decorWorld='';
 decorReady=true;decorStyle(worldName);
-function decorStyle(n){const pyr=n==='desert',cy=n==='cyber';decorNoBob=cy;ROCKDECOR.forEach((q,i)=>{q.py.visible=pyr&&i%3===0;q.tw.visible=cy&&i%5<3;q.parts.forEach(c=>c.visible=!pyr&&!cy)})}
+function decorStyle(n){const pyr=n==='desert',cy=n==='cyber',dp=n==='deep',sp=n==='space',st=n==='steam';decorNoBob=cy||dp;decorWorld=n;
+  ROCKDECOR.forEach((q,i)=>{q.py.visible=pyr&&i%3===0;q.tw.visible=cy&&i%5<3;if(q.bb)q.bb.visible=q.tw.visible;q.wr.visible=dp&&i%3===0;q.as.visible=sp;q.ship.visible=st&&i%3===0;q.gear.visible=st&&i%3===1;
+    const rock=!pyr&&!cy&&!dp&&!sp&&!st;q.parts.forEach(c=>c.visible=rock)})}
+// анимация деталей мира: корабли лежат на дне, астероиды кувыркаются, шестерни крутятся, дирижабли разворачиваются, голограммы бегут и мерцают
+function decorAnim(dt){const n=decorWorld;
+  if(n==='deep'){for(const q of ROCKDECOR)if(q.wr.visible&&q.d.o.visible)q.wr.position.y=SEA+q.wrH-q.d.o.position.y}
+  else if(n==='space'){for(const q of ROCKDECOR)if(q.d.o.visible){q.as.rotation.x+=dt*q.spin;q.as.rotation.z+=dt*q.spin*.7}}
+  else if(n==='steam'){for(const q of ROCKDECOR){if(!q.d.o.visible)continue;if(q.gear.visible)q.gear.rotation.z+=dt*q.spin*1.6;if(q.ship.visible)q.ship.rotation.y=Math.sin(clock*.05+q.ph)*.5}}
+  else if(n==='cyber'){for(const t of HOLOTEX)t.offset.y=(t.offset.y+dt*.05)%1;for(const m of HOLOMAT){const p=m.userData.ph,off=Math.sin(clock*1.1+p)>.97||Math.sin(clock*7.3+p*3)>.995;m.opacity=off?.1:.85+.15*Math.sin(clock*11+p)}}}
+// киберпанк: вдали по воздушным трассам летят машины — белые фары спереди, красные огни сзади
+const CAR_N=70,carP=new Float32Array(CAR_N*6),carC=new Float32Array(CAR_N*6),carG=new THREE.BufferGeometry(),CARS=[];
+for(let k=0;k<CAR_N;k++){const dir=rnd()<.5?1:-1;CARS.push({x:sgn()*(26+rnd()*190),y:14+rnd()*80,sp:(16+rnd()*30)*dir,ph:rnd()*700,dir});carC.set([1,.95,.85,1,.15,.2],k*6)}
+carG.setAttribute('position',new THREE.BufferAttribute(carP,3));carG.setAttribute('color',new THREE.BufferAttribute(carC,3));
+const CARMAT=new THREE.PointsMaterial({size:2.6,map:SOFT,vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false});
+const CARPTS=new THREE.Points(carG,CARMAT);CARPTS.frustumCulled=false;scene.add(CARPTS);
+// световые шлейфы за машинами: от красных огней назад, гаснут к концу
+const trP=new Float32Array(CAR_N*6),trC=new Float32Array(CAR_N*6),trG=new THREE.BufferGeometry();for(let k=0;k<CAR_N;k++)trC.set([1,.2,.35,0,0,0],k*6);
+trG.setAttribute('position',new THREE.BufferAttribute(trP,3));trG.setAttribute('color',new THREE.BufferAttribute(trC,3));
+const TRAILMAT=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false});const CARTR=new THREE.LineSegments(trG,TRAILMAT);CARTR.frustumCulled=false;scene.add(CARTR);
+function updateCars(dt){const on=decorWorld==='cyber';CARMAT.opacity=lerp(CARMAT.opacity,on?.95:0,1-Math.exp(-2*dt));TRAILMAT.opacity=CARMAT.opacity*.9;CARPTS.visible=CARTR.visible=CARMAT.opacity>.02;if(!CARPTS.visible)return;
+  const cz=camT.z,cx=camT.x;for(let k=0;k<CAR_N;k++){const c=CARS[k],z=cz-120+(((c.ph+c.sp*clock)%700)+700)%700;
+    W(cx+c.x,c.y,z+.8*c.dir,TV);carP.set([TV.x,TV.y,TV.z],k*6);W(cx+c.x,c.y,z-.8*c.dir,TV);carP.set([TV.x,TV.y,TV.z],k*6+3);trP.set([TV.x,TV.y,TV.z],k*6);W(cx+c.x,c.y,z-9*c.dir,TV);trP.set([TV.x,TV.y,TV.z],k*6+3)}carG.attributes.position.needsUpdate=true;trG.attributes.position.needsUpdate=true}
+// зима: в небе медленно кружат снежинки
+const SNOW_N=260,snowP=new Float32Array(SNOW_N*3),snowG=new THREE.BufferGeometry(),SNOWS=[];
+for(let k=0;k<SNOW_N;k++)SNOWS.push({x:(rnd()-.5)*90,y:rnd()*50-14,z:(rnd()-.5)*90,ph:rnd()*TAU,f:.4+rnd()*.8,v:.7+rnd()*1.2});
+snowG.setAttribute('position',new THREE.BufferAttribute(snowP,3));
+const SNOWMAT=new THREE.PointsMaterial({size:1.5,map:fxTex('flake'),color:0xeef4ff,transparent:true,opacity:0,depthWrite:false});
+const SNOWPTS=new THREE.Points(snowG,SNOWMAT);SNOWPTS.frustumCulled=false;scene.add(SNOWPTS);
+function updateSnow(dt){SNOWMAT.opacity=.85*WS.snow;SNOWPTS.visible=WS.snow>.03;if(!SNOWPTS.visible)return;const c=camera.position;
+  for(let k=0;k<SNOW_N;k++){const s=SNOWS[k];s.y-=s.v*dt;s.x+=Math.sin(clock*s.f+s.ph)*1.1*dt+.25*dt;s.z+=Math.cos(clock*s.f*.8+s.ph)*.7*dt;
+    if(s.y<-14)s.y+=50;if(s.x>45)s.x-=90;if(s.x<-45)s.x+=90;if(s.z>45)s.z-=90;if(s.z<-45)s.z+=90; // облако снежинок вокруг камеры во все стороны
+    const px=c.x+s.x,py=c.y+s.y,pz=c.z+s.z;snowP[k*3]=px;snowP[k*3+1]=py;snowP[k*3+2]=pz}snowG.attributes.position.needsUpdate=true}
+
 // дождь: косые струи вокруг камеры
 const RAIN_N=420,rainP=new Float32Array(RAIN_N*6),rainG=new THREE.BufferGeometry();rainG.setAttribute('position',new THREE.BufferAttribute(rainP,3));
 const RAINMAT=new THREE.LineBasicMaterial({color:0x9fd6ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false});
@@ -1700,7 +1828,7 @@ function frame(now){
     for(const sp of rec.lyr){const d=sp.userData.tz-cz;sp.material.opacity=clamp((170-d)/70,0,1)*clamp((d-4)/10,0,1)}
     if(rec.stream)updateStream(rec,dt);
   }
-  updateDecor(dt);updateRain(dt);
+  updateDecor(dt);decorAnim(dt);updateRain(dt);updateCars(dt);updateSnow(dt);
   // музыка: полотно и небо дышат в такт, туман и небо меняют оттенок по частям песни, бас подсвечивает облака
   if(mOn)musicFX(dt);else MUS.tint.lerp(WHITE,1-Math.exp(-2*dt));
   const mp=mOn?MUS.pulse:0,mb=mOn?MUS.bar:0,me=mOn?MUS.en:.45;
