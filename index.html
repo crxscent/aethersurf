@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>AetherSurf v0.9.51</title>
+<title>AetherSurf v0.9.52</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ body:not(.playing) .hud,body:not(.music) #progress{display:none}
 <div id="touch"><div class="half" id="left"></div><div class="half" id="right"></div></div>
 <div id="start">
   <div class="title">AETHER SURF</div>
-  <div class="ver">v0.9.51 · УМНЫЙ АВТОПИЛОТ · НОВЫЕ ТЕКСТУРЫ</div>
+  <div class="ver">v0.9.52 · УМНЫЙ АВТОПИЛОТ · НОВЫЕ ТЕКСТУРЫ</div>
   <div class="desc">
     • <b>Под трек</b>: загрузи свою песню — прыжки ложатся на фразы, посадки на доли, припев — вихри и ленты, перед ним — взлёт и портал точно в «дроп»<br>
     • Повтор припева повторяет рисунок трассы, строки песни (.lrc) висят над трассой там, где их поют<br>
@@ -788,12 +788,16 @@ function planGrid(an){
       if(!lastIs&&j>0&&(sec.type==='break'||sec.type==='outro')&&mr()<.15){const g2=barLen>=2?barLen:2*barLen;if(tb-g2-t0>=1.6){gap=g2;stream='glide'}}
       else if(sec.build&&j===0&&!lastIs&&q>=2){const g2=barLen>=2?barLen:2*barLen;if(tb-g2-t0>=1.4){gap=g2;stream='up'}}
       const t1=last&&lastIs?an.dur-gT:tb-gap;
-      if(t1-t0<MINI&&slots.length){const p=slots[slots.length-1];p.t1=t1;p.gap=gap;p.launch=lastIs&&sec.build&&!last;p.stream=stream;p.bars+=q}
+      // слишком короткий кусок приклеиваем к предыдущему; самый первый (такт начался почти с нуля) просто пропускаем — его время отойдёт следующему острову
+      if(t1-t0<MINI){if(slots.length){const p=slots[slots.length-1];p.t1=t1;p.gap=gap;p.launch=lastIs&&sec.build&&!last;p.stream=stream;p.bars+=q}}
       else slots.push({t0,t1,gap,sec:si,stream,launch:lastIs&&sec.build&&!last,bars:q,hop:sec.build&&j>=sizes.length-hops});
       b+=q;
     });
   });
+  if(!slots.length)slots.push({t0:0,t1:an.dur-gT,gap:gT,sec:0,stream:null,launch:false,bars:bars.length-1,hop:false});
   slots[0].t0=0;
+  // страховка: остров не может быть короче минимума или «назад во времени» — склеиваем с соседом
+  for(let i=slots.length-1;i>=0;i--)if(!(slots[i].t1-slots[i].t0>=MINI)&&slots.length>1){const s=slots[i];if(i>0){const p=slots[i-1];p.t1=s.t1;p.gap=s.gap;p.launch=s.launch;p.stream=s.stream;p.bars+=s.bars;slots.splice(i,1)}else{slots[1].t0=0;slots.splice(0,1)}}
   const cnt={};slots.forEach(s=>{s.k=cnt[s.sec]=(cnt[s.sec]??-1)+1});slots.forEach(s=>s.n=cnt[s.sec]+1);
   slots[slots.length-1].finale=true;
   return slots;
