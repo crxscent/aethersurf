@@ -1523,16 +1523,16 @@ const WORLDS={
 WORLDS.trip=Object.assign({},WORLDS.aether,{name:'ТРИП',tex:'trip',fx:'air',pfx:0,wA:0xc8b6ff,wB:0x9fe6d0,dark:'radial-gradient(ellipse at 50% 50%,#1c1428 0%,#07050c 75%)',dot:'#ffe6cc',
   pal:[0xf3aec4,0xffcfa6,0xb5e6cf,0xbcb2f0,0x9fd6ea],
   zen:[.07,.06,.18],mid:[.3,.24,.46],hor:[.92,.66,.6],low:[.3,.34,.42],neb1:[.8,.55,.85],neb2:[.45,.75,.85],neb:.7,aurA:[.6,1,.85],aurB:[.85,.62,1],aur:.3,
-  sun:[1,.86,.74],sunDir:[.25,.16,1],sunSize:120,sunGlow:.16,planet:1,planetDir:[-1,.38,-.3],planetCol:[.86,.78,.96],galaxy:.25,stars:.45,
+  sun:[1,.86,.74],sunDir:[.25,.16,1],sunSize:80,sunGlow:.07,planet:1,planetDir:[-1,.38,-.3],planetCol:[.86,.78,.96],galaxy:.25,stars:.45,
   fog:[.56,.44,.56],fogD:.0019,fA:[.5,.6,.55],fB:[.95,.85,.9],fC:[1,.9,.75],cloud:0,dune:0,caus:0,void:0,spark:0,
   rock:c3(0x7a6a8a),rockE:c3(0x2a2234),moss0:c3(0xb5e6cf),moss1:c3(0xf3aec4),rim:[.42,.34,.5],hemiS:[1,.9,.95],hemiG:[.4,.5,.46],hemi:.6,key:[1,.88,.8],fill:[.7,.85,1],
   cloudLo:c3(0xf3c6d6),cloudHi:c3(0xc8e6f0),cloudO:.6,mote:[1,.86,.62],moteSize:.42,wind:[0,.35,0],wob:.25,
-  neon:.55,self:.04,refl:.5,det:.08,flow:.3,flowC:[1,.85,.9],city:0,rain:0,snow:0,emi:.25,rough:.45,metal:.15,env:.55,nrm:.5,tcaus:0,causC:[1,.85,.9],tspark:.15});
+  neon:.45,self:.03,refl:.32,det:.08,flow:.3,flowC:[1,.85,.9],city:0,rain:0,snow:0,emi:.18,rough:.5,metal:.12,env:.38,nrm:.5,tcaus:0,causC:[1,.85,.9],tspark:.15});
 // кино-параметры мира: g* — цветокоррекция и свечение, hill/seab — рельеф, r0/r1 — ближний и дальний горизонт
 // (режимы горизонта: 0 пики, 1 столовые горы, 2 город, 3 облачная гряда, 4 фабрики с трубами)
 const CINE_DEF={mtnScale:1,trip:0,skyAmb:.9,hemiK:.6,fillK:.4,rimEnv:.4,irid:0,mtn:0,mtnRock:[.2,.22,.27],mtnSnow:[.86,.9,1],gExp:1,gBloom:.45,gThr:.9,gShaft:0,gCon:1.06,gSat:1.06,gVig:.38,gLift:[0,0,0],gGain:[1,1,1],gCA:0,hill:0,seab:0,r0:null,r1:null};
 const CINE={
-  trip:{trip:1,hill:1,gExp:.8,gBloom:.3,gThr:.86,gShaft:.18,gCon:1.04,gSat:1.08,gVig:.42,gCA:0,gLift:[.025,.015,.04],gGain:[1.02,.98,.97],irid:0,self:.03,rimEnv:.5,skyAmb:1.05,r0:null,r1:null,
+  trip:{trip:1,hill:1,gExp:.8,gBloom:.22,gThr:.93,gShaft:.08,gCon:1.04,gSat:1.08,gVig:.42,gCA:0,gLift:[.025,.015,.04],gGain:[1.02,.98,.97],irid:0,self:.03,rimEnv:.5,skyAmb:1.05,r0:null,r1:null,
     mtn:1,mtnScale:.55,mtnRock:[.56,.47,.62],mtnSnow:[.98,.88,.9]},
   aether:{gExp:.95,gBloom:.7,gThr:.74,gShaft:.55,gCon:1.08,gSat:1.1,gVig:.4,gLift:[.02,.01,.05],gGain:[1.02,.98,1],irid:.35,self:.02,refl:.75,emi:.3,rim:[.16,.12,.3],det:.1,
     hemiG:[.34,.27,.5],hemi:.62,sun:[1,.8,.62],sunGlow:.2,sunSize:120,sunDir:[.15,.24,1],key:[1,.84,.72],fill:[.55,.62,1],hor:[.74,.46,.62],mid:[.2,.12,.36],zen:[.03,.03,.1],fA:[.16,.1,.3],fB:[1,.78,.8],fC:[1,.7,.45],fog:[.47,.33,.6],
